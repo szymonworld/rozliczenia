@@ -1,4 +1,3 @@
-import { GROUP_SLUG } from "../../shared/types";
 import type { Entry, EntryWriteRequest, Ledger, LedgerSettings } from "../../shared/types";
 
 const CACHE_KEY = "rozliczenia:ledger-cache";
@@ -10,9 +9,9 @@ const SLUG_KEY = "rozliczenia:group-slug";
  */
 export function getGroupSlug(): string | null {
   try {
-    return localStorage.getItem(SLUG_KEY) ?? GROUP_SLUG;
+    return localStorage.getItem(SLUG_KEY);
   } catch {
-    return GROUP_SLUG;
+    return null;
   }
 }
 
@@ -31,6 +30,14 @@ export function readCachedLedger(): Ledger | null {
     return raw ? (JSON.parse(raw) as Ledger) : null;
   } catch {
     return null;
+  }
+}
+
+export function clearCachedLedger() {
+  try {
+    localStorage.removeItem(CACHE_KEY);
+  } catch {
+    // Nothing to clear if storage is unavailable.
   }
 }
 
@@ -97,7 +104,10 @@ export async function fetchLedger(): Promise<Ledger> {
   const res = await fetch(`/api/ledger?slug=${encodeURIComponent(getGroupSlug() ?? "")}`, {
     cache: "no-store",
   });
-  if (res.status === 404) throw new GroupNotFoundError("Nie znaleziono grupy");
+  if (res.status === 404) {
+    clearCachedLedger();
+    throw new GroupNotFoundError("Nie znaleziono grupy");
+  }
   if (!res.ok) throw new ApiError("Nie udało się pobrać danych z serwera");
   const ledger = (await res.json()) as Ledger;
   writeCachedLedger(ledger);

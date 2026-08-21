@@ -19,3 +19,4 @@ dist-ssr
 
 .vercel
 .env*
+backups/

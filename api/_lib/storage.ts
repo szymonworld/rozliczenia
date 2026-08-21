@@ -87,30 +87,32 @@ async function writeLocal(ledger: Ledger): Promise<void> {
 const blobKey = (slug: string) => `groups/${slug}/ledger.json`;
 
 async function readBlob(slug: string): Promise<Ledger> {
-  const { list, put } = await import("@vercel/blob");
+  const { get } = await import("@vercel/blob");
   const key = blobKey(slug);
-  const { blobs } = await list({ prefix: key, limit: 1 });
-  const existing = blobs.find((b) => b.pathname === key);
+
+  // Private store: the blob is only readable with the store token, so this
+  // authenticated read is the only way in. There is no public URL to leak.
+  // useCache:false because every write is a read-modify-write — serving a
+  // stale copy from the CDN would silently roll the ledger back.
+  const existing = await get(key, {
+    access: "private",
+    useCache: false,
+    token: process.env.BLOB_READ_WRITE_TOKEN,
+  });
   if (!existing) {
     const seeded = seedLedger();
-    await put(key, JSON.stringify(seeded, null, 2), {
-      access: "public",
-      contentType: "application/json",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-    });
+    await writeBlob(slug, seeded);
     return seeded;
   }
-  const res = await fetch(existing.url, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Nie udało się pobrać danych (status ${res.status})`);
-  return (await res.json()) as Ledger;
+
+  const text = await new Response(existing.stream).text();
+  return JSON.parse(text) as Ledger;
 }
 
 async function writeBlob(slug: string, ledger: Ledger): Promise<void> {
   const { put } = await import("@vercel/blob");
-  const key = blobKey(slug);
-  await put(key, JSON.stringify(ledger, null, 2), {
-    access: "public",
+  await put(blobKey(slug), JSON.stringify(ledger, null, 2), {
+    access: "private",
     contentType: "application/json",
     addRandomSuffix: false,
     allowOverwrite: true,

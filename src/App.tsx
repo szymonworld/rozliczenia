@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { IdentityProvider, useIdentity } from "./context/IdentityContext";
 import { LedgerProvider, useLedger } from "./context/LedgerContext";
+import { getGroupSlug } from "./lib/api";
 import { ToastProvider } from "./context/ToastContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { NamePicker } from "./screens/NamePicker";
@@ -18,7 +19,9 @@ function Gate({ children }: { children: ReactNode }) {
   const { whoAmI } = useIdentity();
   const { groupNotFound } = useLedger();
 
-  if (groupNotFound) return <NeedLink />;
+  // No slug at all is refused up front, so a device without the secret link
+  // never renders the app — not even briefly from the cache.
+  if (!getGroupSlug() || groupNotFound) return <NeedLink />;
   if (!whoAmI) return <NamePicker />;
   return <>{children}</>;
 }
