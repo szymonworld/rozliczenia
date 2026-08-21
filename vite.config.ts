@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
@@ -21,6 +21,12 @@ function localApiPlugin(): Plugin {
         if (!modulePath) return next();
 
         try {
+          // Vercel populates req.query; plain Node does not, so shim it here
+          // rather than making the handlers defensive about their runtime.
+          const parsed = new URL(req.url ?? "", "http://localhost");
+          (req as unknown as { query: Record<string, string> }).query =
+            Object.fromEntries(parsed.searchParams);
+
           if (req.method === "POST") {
             let raw = "";
             for await (const chunk of req) raw += chunk;
@@ -56,7 +62,12 @@ function localApiPlugin(): Plugin {
 }
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  // Vercel injects env vars into process.env for functions; locally we mirror
+  // that from .env files so the dev API behaves the same as production.
+  Object.assign(process.env, loadEnv(mode, process.cwd(), ""));
+
+  return {
   plugins: [
     react(),
     tailwindcss(),
@@ -94,4 +105,5 @@ export default defineConfig({
       },
     }),
   ],
+  };
 });

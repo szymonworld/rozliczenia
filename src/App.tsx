@@ -1,34 +1,43 @@
 import type { ReactNode } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { IdentityProvider, useIdentity } from "./context/IdentityContext";
-import { LedgerProvider } from "./context/LedgerContext";
+import { LedgerProvider, useLedger } from "./context/LedgerContext";
 import { ToastProvider } from "./context/ToastContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { NamePicker } from "./screens/NamePicker";
+import { NeedLink } from "./screens/NeedLink";
+import { JoinGroup } from "./screens/JoinGroup";
 import { Home } from "./screens/Home";
 import { History } from "./screens/History";
 import { AddEdit } from "./screens/AddEdit";
 import { Settings } from "./screens/Settings";
 import { Stats } from "./screens/Stats";
 
+/** Requires a valid group link first, then an identity on this device. */
 function Gate({ children }: { children: ReactNode }) {
   const { whoAmI } = useIdentity();
+  const { groupNotFound } = useLedger();
+
+  if (groupNotFound) return <NeedLink />;
   if (!whoAmI) return <NamePicker />;
   return <>{children}</>;
 }
 
 function AppRoutes() {
+  const guard = (element: ReactNode) => <Gate>{element}</Gate>;
+
   return (
-    <Gate>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/historia" element={<History />} />
-        <Route path="/podsumowanie" element={<Stats />} />
-        <Route path="/dodaj" element={<AddEdit />} />
-        <Route path="/edytuj/:id" element={<AddEdit />} />
-        <Route path="/ustawienia" element={<Settings />} />
-      </Routes>
-    </Gate>
+    <Routes>
+      {/* The secret link — stores the slug, then hands over to the app. */}
+      <Route path="/g/:slug" element={<JoinGroup />} />
+
+      <Route path="/" element={guard(<Home />)} />
+      <Route path="/historia" element={guard(<History />)} />
+      <Route path="/podsumowanie" element={guard(<Stats />)} />
+      <Route path="/dodaj" element={guard(<AddEdit />)} />
+      <Route path="/edytuj/:id" element={guard(<AddEdit />)} />
+      <Route path="/ustawienia" element={guard(<Settings />)} />
+    </Routes>
   );
 }
 

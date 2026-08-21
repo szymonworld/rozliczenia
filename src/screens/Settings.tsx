@@ -15,8 +15,9 @@ import {
   setMemberHidden,
   setMemberPayment,
   setSettings,
+  getGroupSlug,
 } from "../lib/api";
-import { buildCsv, downloadFile } from "../lib/share";
+import { buildCsv, downloadFile, shareText } from "../lib/share";
 import type { Ledger, Member } from "../../shared/types";
 
 const sectionTitle = "mb-2 px-1 text-[13px] font-semibold uppercase tracking-[0.06em] text-muted";
@@ -372,6 +373,33 @@ export function Settings() {
               </p>
             )}
           </div>
+        </section>
+
+        <section>
+          <h2 className={sectionTitle}>Link do grupy</h2>
+          <button
+            onClick={async () => {
+              const link = `${window.location.origin}/g/${getGroupSlug() ?? ""}`;
+              const result = await shareText("Rozliczenia — link do grupy", link);
+              if (result === "copied") showToast("Link skopiowany do schowka");
+              else if (result === "failed") showToast("Nie udało się udostępnić linku");
+            }}
+            className="press card flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left active:bg-surface-2"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
+              <Icon name="share" className="h-[18px] w-[18px]" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[15px] font-medium text-ink">Udostępnij link</span>
+              <span className="block truncate text-[13px] text-muted">
+                /g/{getGroupSlug()}
+              </span>
+            </span>
+            <Icon name="chevron" className="h-4 w-4 shrink-0 text-muted/60" />
+          </button>
+          <p className="mt-2 px-1 text-[13px] leading-relaxed text-muted">
+            Każdy, kto ma ten link, ma dostęp do rozliczeń. Wysyłaj go tylko swoim.
+          </p>
         </section>
 
         <section>

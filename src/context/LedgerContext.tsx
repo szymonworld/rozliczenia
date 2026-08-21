@@ -8,7 +8,13 @@ import {
   type ReactNode,
 } from "react";
 import type { Ledger } from "../../shared/types";
-import { ApiError, fetchLedger, readCachedLedger, reconcilePending } from "../lib/api";
+import {
+  ApiError,
+  GroupNotFoundError,
+  fetchLedger,
+  readCachedLedger,
+  reconcilePending,
+} from "../lib/api";
 
 type LedgerContextValue = {
   ledger: Ledger | null;
@@ -16,6 +22,7 @@ type LedgerContextValue = {
   refreshing: boolean;
   error: string | null;
   isOffline: boolean;
+  groupNotFound: boolean;
   syncWarning: boolean;
   refetch: () => Promise<void>;
   applyLedger: (ledger: Ledger) => void;
@@ -30,6 +37,7 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
   const [syncWarning, setSyncWarning] = useState(false);
+  const [groupNotFound, setGroupNotFound] = useState(false);
   const inFlight = useRef(false);
 
   const applyLedger = useCallback((next: Ledger) => {
@@ -47,8 +55,11 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
       applyLedger(next);
       setError(null);
       setIsOffline(false);
+      setGroupNotFound(false);
     } catch (err) {
-      if (err instanceof ApiError || !navigator.onLine) {
+      if (err instanceof GroupNotFoundError) {
+        setGroupNotFound(true);
+      } else if (err instanceof ApiError || !navigator.onLine) {
         setIsOffline(true);
       } else {
         setError(err instanceof Error ? err.message : "Nieznany błąd");
@@ -80,7 +91,17 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
 
   return (
     <LedgerContext.Provider
-      value={{ ledger, loading, refreshing, error, isOffline, syncWarning, refetch, applyLedger }}
+      value={{
+        ledger,
+        loading,
+        refreshing,
+        error,
+        isOffline,
+        groupNotFound,
+        syncWarning,
+        refetch,
+        applyLedger,
+      }}
     >
       {children}
     </LedgerContext.Provider>

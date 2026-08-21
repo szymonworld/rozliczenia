@@ -1,6 +1,28 @@
+import { GROUP_SLUG } from "../../shared/types";
 import type { Entry, EntryWriteRequest, Ledger, LedgerSettings } from "../../shared/types";
 
 const CACHE_KEY = "rozliczenia:ledger-cache";
+const SLUG_KEY = "rozliczenia:group-slug";
+
+/**
+ * The group slug from the secret link, remembered per device. Requests without
+ * a valid slug are rejected by the API, so this is what gates access.
+ */
+export function getGroupSlug(): string | null {
+  try {
+    return localStorage.getItem(SLUG_KEY) ?? GROUP_SLUG;
+  } catch {
+    return GROUP_SLUG;
+  }
+}
+
+export function setGroupSlug(slug: string) {
+  try {
+    localStorage.setItem(SLUG_KEY, slug);
+  } catch {
+    // Without storage the slug lasts only for this page load.
+  }
+}
 const PENDING_KEY = "rozliczenia:pending-entries";
 
 export function readCachedLedger(): Ledger | null {
@@ -68,9 +90,14 @@ export function reconcilePending(ledger: Ledger): string[] {
 }
 
 export class ApiError extends Error {}
+/** The slug this device holds is not valid for any group. */
+export class GroupNotFoundError extends ApiError {}
 
 export async function fetchLedger(): Promise<Ledger> {
-  const res = await fetch("/api/ledger", { cache: "no-store" });
+  const res = await fetch(`/api/ledger?slug=${encodeURIComponent(getGroupSlug() ?? "")}`, {
+    cache: "no-store",
+  });
+  if (res.status === 404) throw new GroupNotFoundError("Nie znaleziono grupy");
   if (!res.ok) throw new ApiError("Nie udało się pobrać danych z serwera");
   const ledger = (await res.json()) as Ledger;
   writeCachedLedger(ledger);
@@ -86,7 +113,7 @@ async function postEntry(body: EntryWriteRequest): Promise<Ledger> {
     res = await fetch("/api/entry", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, slug: getGroupSlug() ?? "" }),
     });
   } catch {
     throw new ApiError("Brak połączenia z internetem — spróbuj ponownie, gdy będziesz online.");

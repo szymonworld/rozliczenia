@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getLedger, saveLedger } from "./_lib/storage.js";
-import { GROUP_SLUG } from "../shared/types.js";
+import { resolveSlug } from "./_lib/access.js";
 import type { Entry, EntryWriteRequest, Ledger } from "../shared/types.js";
 
 function validateEntry(entry: Entry): string | null {
@@ -42,8 +42,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
+  const slug = resolveSlug((body as { slug?: unknown }).slug);
+  if (!slug) {
+    res.status(404).json({ error: "Nie znaleziono grupy — sprawdź link" });
+    return;
+  }
+
   try {
-    const ledger = await getLedger(GROUP_SLUG);
+    const ledger = await getLedger(slug);
     let updated: Ledger;
 
     switch (body.action) {
