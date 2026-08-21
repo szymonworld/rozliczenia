@@ -1,30 +1,47 @@
+import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
+import { Icon } from "./Icon";
 
-export function Header({ title, back }: { title: string; back?: boolean }) {
+export function Header({
+  title,
+  back,
+  right,
+}: {
+  title: string;
+  back?: boolean;
+  right?: ReactNode;
+}) {
   const navigate = useNavigate();
   return (
-    <header className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-200 bg-neutral-50/90 px-4 py-3 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/90">
-      <div className="flex items-center gap-2">
+    <header
+      style={{ paddingTop: "env(safe-area-inset-top)" }}
+      className="sticky top-0 z-30 border-b border-line/80 bg-bg/75 backdrop-blur-xl"
+    >
+      <div className="mx-auto flex w-full max-w-md items-center gap-1 px-2 py-2">
         {back && (
           <button
             aria-label="Wstecz"
             onClick={() => navigate(-1)}
-            className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-neutral-700 active:bg-neutral-200 dark:text-neutral-200 dark:active:bg-neutral-800"
+            className="press flex h-11 w-11 items-center justify-center rounded-full text-ink active:bg-surface-2"
           >
-            ←
+            <Icon name="back" />
           </button>
         )}
-        <h1 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">{title}</h1>
-      </div>
-      {!back && (
-        <button
-          aria-label="Ustawienia"
-          onClick={() => navigate("/ustawienia")}
-          className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-neutral-700 active:bg-neutral-200 dark:text-neutral-200 dark:active:bg-neutral-800"
+        <h1
+          className={`flex-1 text-[17px] font-semibold tracking-tight text-ink ${back ? "" : "pl-3"}`}
         >
-          ⚙️
-        </button>
-      )}
+          {title}
+        </h1>
+        {right ?? (
+          <button
+            aria-label="Ustawienia"
+            onClick={() => navigate("/ustawienia")}
+            className="press flex h-11 w-11 items-center justify-center rounded-full text-muted active:bg-surface-2"
+          >
+            <Icon name="settings" />
+          </button>
+        )}
+      </div>
     </header>
   );
 }

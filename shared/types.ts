@@ -4,10 +4,17 @@
 
 export const GROUP_SLUG = "domownicy";
 
+/** Where to actually send this person money. Both fields are free-form. */
+export type PaymentDetails = {
+  blik?: string; // phone number for a BLIK transfer
+  iban?: string; // bank account number
+};
+
 export type Member = {
   id: string;
   name: string;
   hidden?: boolean;
+  payment?: PaymentDetails;
 };
 
 export type Share = {
@@ -61,4 +68,6 @@ export type EntryWriteRequest =
   | { action: "delete"; id: string }
   | { action: "restore"; id: string }
   | { action: "addMember"; name: string }
-  | { action: "setMemberHidden"; memberId: string; hidden: boolean };
+  | { action: "setMemberHidden"; memberId: string; hidden: boolean }
+  | { action: "setMemberPayment"; memberId: string; payment: PaymentDetails }
+  | { action: "renameMember"; memberId: string; name: string };

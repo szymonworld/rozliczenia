@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode, type TouchEvent } from "react";
+import { Icon } from "./Icon";
 
 const THRESHOLD = 70;
 
@@ -25,9 +26,7 @@ export function PullToRefresh({
   const onTouchMove = (e: TouchEvent) => {
     if (startY.current === null || refreshing) return;
     const delta = e.touches[0].clientY - startY.current;
-    if (delta > 0) {
-      setPull(Math.min(delta * 0.5, 100));
-    }
+    if (delta > 0) setPull(Math.min(delta * 0.5, 96));
   };
 
   const onTouchEnd = async () => {
@@ -41,19 +40,29 @@ export function PullToRefresh({
     startY.current = null;
   };
 
+  const ready = pull > THRESHOLD;
+
   return (
     <div
       ref={containerRef}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
-      className="min-h-full overflow-y-auto"
+      className="min-h-full flex-1 overflow-y-auto"
     >
       <div
         style={{ height: pull }}
-        className="flex items-center justify-center overflow-hidden transition-[height] text-xs text-neutral-500 dark:text-neutral-400"
+        className="flex items-end justify-center overflow-hidden transition-[height] duration-200"
       >
-        {pull > 0 && (refreshing ? "Odświeżanie…" : pull > THRESHOLD ? "Puść, aby odświeżyć" : "Przeciągnij, aby odświeżyć")}
+        {pull > 0 && (
+          <span className="flex items-center gap-1.5 pb-2 text-xs font-medium text-muted">
+            <Icon
+              name="refresh"
+              className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ready ? "rotate-180" : ""} transition-transform`}
+            />
+            {refreshing ? "Odświeżanie…" : ready ? "Puść, aby odświeżyć" : "Pociągnij, aby odświeżyć"}
+          </span>
+        )}
       </div>
       {children}
     </div>

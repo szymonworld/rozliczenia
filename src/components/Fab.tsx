@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { Icon } from "./Icon";
 
 export function Fab() {
   const navigate = useNavigate();
@@ -6,10 +7,14 @@ export function Fab() {
     <button
       aria-label="Dodaj wydatek"
       onClick={() => navigate("/dodaj")}
-      style={{ bottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}
-      className="fixed right-5 z-20 flex h-16 w-16 items-center justify-center rounded-full bg-teal-600 text-3xl font-light text-white shadow-lg shadow-teal-900/30 active:bg-teal-700 dark:bg-teal-500 dark:active:bg-teal-600"
+      style={{
+        bottom: "calc(1.5rem + env(safe-area-inset-bottom))",
+        background: "linear-gradient(135deg, var(--accent), var(--accent-2))",
+        boxShadow: "var(--shadow-lift)",
+      }}
+      className="press fixed right-5 z-30 flex h-15 w-15 items-center justify-center rounded-full text-on-accent"
     >
-      +
+      <Icon name="plus" className="h-7 w-7" strokeWidth={2.25} />
     </button>
   );
 }

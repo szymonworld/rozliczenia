@@ -128,3 +128,14 @@ export async function addMember(name: string): Promise<Ledger> {
 export async function setMemberHidden(memberId: string, hidden: boolean): Promise<Ledger> {
   return postEntry({ action: "setMemberHidden", memberId, hidden });
 }
+
+export async function setMemberPayment(
+  memberId: string,
+  payment: { blik?: string; iban?: string },
+): Promise<Ledger> {
+  return postEntry({ action: "setMemberPayment", memberId, payment });
+}
+
+export async function renameMember(memberId: string, name: string): Promise<Ledger> {
+  return postEntry({ action: "renameMember", memberId, name });
+}

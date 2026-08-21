@@ -3,10 +3,16 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { ulid } from "ulid";
 import { Header } from "../components/Header";
 import { Chip } from "../components/Chip";
+import { Avatar } from "../components/Avatar";
+import { Banner } from "../components/Banner";
+import { Icon } from "../components/Icon";
+import { SegmentedControl } from "../components/SegmentedControl";
 import { useIdentity } from "../context/IdentityContext";
 import { useLedger } from "../context/LedgerContext";
+import { useToast } from "../context/ToastContext";
+import { copyText } from "../lib/share";
 import { createEntry, updateEntry } from "../lib/api";
-import { groszeToInputValue, parsePlnToGrosze, splitEqual } from "../lib/money";
+import { formatGrosze, groszeToInputValue, parsePlnToGrosze, splitEqual } from "../lib/money";
 import type { Entry, Share } from "../../shared/types";
 import type { SuggestedTransfer } from "../lib/balances";
 
@@ -16,9 +22,15 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+const fieldClass =
+  "min-h-12 w-full rounded-2xl border border-line bg-surface px-4 py-2.5 text-[15px] text-ink outline-none transition-colors focus:border-accent focus:ring-4 focus:ring-accent/15";
+
+const labelClass = "mb-1.5 block text-[13px] font-medium text-muted";
+
 export function AddEdit() {
   const { ledger, applyLedger } = useLedger();
   const { whoAmI } = useIdentity();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const { id } = useParams<{ id: string }>();
@@ -48,7 +60,10 @@ export function AddEdit() {
   const [date, setDate] = useState(editingEntry?.date ?? todayIso());
   const allMembers = ledger?.members ?? [];
   const selectableMembers = allMembers.filter(
-    (m) => !m.hidden || initialExpense?.shares.some((s) => s.memberId === m.id) || m.id === initialExpense?.payerId,
+    (m) =>
+      !m.hidden ||
+      initialExpense?.shares.some((s) => s.memberId === m.id) ||
+      m.id === initialExpense?.payerId,
   );
   const [participantIds, setParticipantIds] = useState<string[]>(
     initialExpense
@@ -83,11 +98,20 @@ export function AddEdit() {
     );
   };
 
+  const allSelected = participantIds.length === selectableMembers.length;
+  const toggleAll = () =>
+    setParticipantIds(allSelected ? [] : selectableMembers.map((m) => m.id));
+
   const exactSum = participantIds.reduce((sum, mid) => {
     const g = parsePlnToGrosze(exactAmounts[mid] ?? "");
     return sum + (g ?? 0);
   }, 0);
   const exactRemaining = (totalGrosze ?? 0) - exactSum;
+
+  const perPerson =
+    totalGrosze !== null && participantIds.length > 0 && !exactSplit
+      ? Math.floor(totalGrosze / participantIds.length)
+      : null;
 
   const canSubmitExpense =
     totalGrosze !== null &&
@@ -116,8 +140,9 @@ export function AddEdit() {
     setSubmitting(true);
     setError(null);
     try {
+      if (totalGrosze === null) throw new Error("Nieprawidłowa kwota");
+
       if (entryType === "expense") {
-        if (totalGrosze === null) throw new Error("Nieprawidłowa kwota");
         const shares = buildShares();
         if (editingEntry) {
           const changes: Partial<Entry> = {
@@ -128,8 +153,7 @@ export function AddEdit() {
             date,
             shares,
           };
-          const updated = await updateEntry(editingEntry.id, changes, whoAmI);
-          applyLedger(updated);
+          applyLedger(await updateEntry(editingEntry.id, changes, whoAmI));
         } else {
           const entry: Entry = {
             id: ulid(),
@@ -142,11 +166,9 @@ export function AddEdit() {
             createdAt: new Date().toISOString(),
             createdBy: whoAmI,
           };
-          const updated = await createEntry(entry);
-          applyLedger(updated);
+          applyLedger(await createEntry(entry));
         }
       } else {
-        if (totalGrosze === null) throw new Error("Nieprawidłowa kwota");
         if (editingEntry) {
           const changes: Partial<Entry> = {
             type: "settlement",
@@ -155,8 +177,7 @@ export function AddEdit() {
             amountGrosze: totalGrosze,
             date,
           };
-          const updated = await updateEntry(editingEntry.id, changes, whoAmI);
-          applyLedger(updated);
+          applyLedger(await updateEntry(editingEntry.id, changes, whoAmI));
         } else {
           const entry: Entry = {
             id: ulid(),
@@ -168,8 +189,7 @@ export function AddEdit() {
             createdAt: new Date().toISOString(),
             createdBy: whoAmI,
           };
-          const updated = await createEntry(entry);
-          applyLedger(updated);
+          applyLedger(await createEntry(entry));
         }
       }
       navigate(-1);
@@ -182,156 +202,173 @@ export function AddEdit() {
 
   if (!ledger || !whoAmI) {
     return (
-      <div className="flex min-h-dvh items-center justify-center text-neutral-500 dark:text-neutral-400">
+      <div className="flex min-h-dvh items-center justify-center bg-bg text-sm text-muted">
         Ładowanie…
       </div>
     );
   }
 
+  const canSubmit = entryType === "expense" ? canSubmitExpense : canSubmitSettlement;
+
   return (
-    <div className="flex min-h-dvh flex-col bg-neutral-100 dark:bg-neutral-950">
-      <Header title={editingEntry ? "Edytuj wpis" : "Dodaj wpis"} back />
-      <div className="mx-auto w-full max-w-md space-y-5 px-4 pb-32 pt-4">
+    <div className="flex min-h-dvh flex-col bg-bg">
+      <Header title={editingEntry ? "Edytuj wpis" : "Nowy wpis"} back right={<span />} />
+
+      <div className="mx-auto w-full max-w-md space-y-5 px-4 pb-36 pt-4">
         {!editingEntry && (
-          <div className="flex rounded-xl border border-neutral-300 bg-white p-1 dark:border-neutral-700 dark:bg-neutral-900">
-            <button
-              onClick={() => setEntryType("expense")}
-              className={`min-h-11 flex-1 rounded-lg text-sm font-medium ${
-                entryType === "expense"
-                  ? "bg-teal-600 text-white dark:bg-teal-500"
-                  : "text-neutral-600 dark:text-neutral-300"
-              }`}
-            >
-              Wydatek
-            </button>
-            <button
-              onClick={() => setEntryType("settlement")}
-              className={`min-h-11 flex-1 rounded-lg text-sm font-medium ${
-                entryType === "settlement"
-                  ? "bg-teal-600 text-white dark:bg-teal-500"
-                  : "text-neutral-600 dark:text-neutral-300"
-              }`}
-            >
-              Rozliczenie
-            </button>
-          </div>
+          <SegmentedControl
+            value={entryType}
+            onChange={setEntryType}
+            options={[
+              { value: "expense", label: "Wydatek" },
+              { value: "settlement", label: "Rozliczenie" },
+            ]}
+          />
         )}
 
-        <div>
-          <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
-            Kwota (zł)
+        {/* Amount — the hero field. */}
+        <div className="card rounded-3xl px-5 py-6">
+          <label htmlFor="amount" className="block text-center text-[13px] font-medium text-muted">
+            Kwota
           </label>
-          <input
-            inputMode="decimal"
-            value={amountInput}
-            onChange={(e) => setAmountInput(e.target.value)}
-            placeholder="0,00"
-            className="min-h-11 w-full rounded-xl border border-neutral-300 bg-white px-4 py-2 text-2xl font-semibold text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-50"
-            style={{ fontVariantNumeric: "tabular-nums" }}
-          />
-        </div>
-
-        <div>
-          <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
-            Data
-          </label>
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="min-h-11 w-full rounded-xl border border-neutral-300 bg-white px-4 py-2 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-50"
-          />
+          <div className="mt-2 flex items-baseline justify-center gap-1.5">
+            <input
+              id="amount"
+              inputMode="decimal"
+              value={amountInput}
+              onChange={(e) => setAmountInput(e.target.value)}
+              placeholder="0,00"
+              className="num w-full max-w-[8ch] border-none bg-transparent text-center text-[2.5rem] font-bold leading-none tracking-tight text-ink outline-none placeholder:text-muted/40"
+            />
+            <span className="text-xl font-semibold text-muted">zł</span>
+          </div>
+          {perPerson !== null && perPerson > 0 && entryType === "expense" && (
+            <p className="mt-3 text-center text-[13px] text-muted">
+              po {formatGrosze(perPerson)} na osobę
+            </p>
+          )}
         </div>
 
         {entryType === "expense" ? (
           <>
             <div>
-              <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              <label htmlFor="description" className={labelClass}>
                 Opis
               </label>
               <input
+                id="description"
                 type="text"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="np. zakupy, piwo, bilety"
-                className="min-h-11 w-full rounded-xl border border-neutral-300 bg-white px-4 py-2 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-50"
+                className={fieldClass}
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                Kto zapłacił
+              <label htmlFor="date" className={labelClass}>
+                Data
               </label>
-              <select
-                value={payerId}
-                onChange={(e) => setPayerId(e.target.value)}
-                className="min-h-11 w-full rounded-xl border border-neutral-300 bg-white px-4 py-2 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-50"
-              >
-                {selectableMembers.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
+              <input
+                id="date"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className={fieldClass}
+              />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                Uczestnicy
-              </label>
+              <span className={labelClass}>Kto zapłacił</span>
               <div className="flex flex-wrap gap-2">
                 {selectableMembers.map((m) => (
                   <Chip
                     key={m.id}
                     label={m.name}
-                    selected={participantIds.includes(m.id)}
-                    onClick={() => toggleParticipant(m.id)}
+                    seed={m.id}
+                    selected={payerId === m.id}
+                    onClick={() => setPayerId(m.id)}
                   />
                 ))}
               </div>
             </div>
 
-            <label className="flex min-h-11 items-center gap-2 text-sm text-neutral-600 dark:text-neutral-300">
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-[13px] font-medium text-muted">
+                  Podziel na ({participantIds.length})
+                </span>
+                <button
+                  type="button"
+                  onClick={toggleAll}
+                  className="press rounded-full px-2 py-1 text-[13px] font-medium text-accent"
+                >
+                  {allSelected ? "Odznacz wszystkich" : "Zaznacz wszystkich"}
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {selectableMembers.map((m) => (
+                  <Chip
+                    key={m.id}
+                    label={m.name}
+                    seed={m.id}
+                    selected={participantIds.includes(m.id)}
+                    onClick={() => toggleParticipant(m.id)}
+                  />
+                ))}
+              </div>
+              {participantIds.length === 0 && (
+                <p className="mt-2 text-[13px] text-neg">Wybierz co najmniej jedną osobę.</p>
+              )}
+            </div>
+
+            <label className="press card flex min-h-12 cursor-pointer items-center gap-3 rounded-2xl px-4 py-3">
               <input
                 type="checkbox"
                 checked={exactSplit}
                 onChange={(e) => setExactSplit(e.target.checked)}
-                className="h-5 w-5 accent-teal-600"
+                className="h-5 w-5 rounded"
               />
-              podziel dokładnie
+              <span className="flex-1 text-[15px] text-ink">Podziel dokładnie</span>
+              <span className="text-[13px] text-muted">
+                {exactSplit ? "kwoty ręcznie" : "po równo"}
+              </span>
             </label>
 
             {exactSplit && (
-              <div className="space-y-2 rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900">
-                {participantIds.map((mid) => (
-                  <div key={mid} className="flex items-center justify-between gap-3">
-                    <span className="text-sm text-neutral-700 dark:text-neutral-300">
-                      {allMembers.find((m) => m.id === mid)?.name}
-                    </span>
-                    <input
-                      inputMode="decimal"
-                      value={exactAmounts[mid] ?? ""}
-                      onChange={(e) =>
-                        setExactAmounts((prev) => ({ ...prev, [mid]: e.target.value }))
-                      }
-                      placeholder="0,00"
-                      className="min-h-11 w-28 rounded-lg border border-neutral-300 bg-white px-3 py-1 text-right dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-50"
-                      style={{ fontVariantNumeric: "tabular-nums" }}
-                    />
-                  </div>
-                ))}
+              <div className="card space-y-1 rounded-3xl p-3">
+                {participantIds.map((mid) => {
+                  const member = allMembers.find((m) => m.id === mid);
+                  return (
+                    <div key={mid} className="flex items-center gap-3 px-1 py-1">
+                      <Avatar name={member?.name ?? "?"} seed={mid} size="sm" />
+                      <span className="flex-1 text-[15px] text-ink">{member?.name}</span>
+                      <input
+                        inputMode="decimal"
+                        value={exactAmounts[mid] ?? ""}
+                        onChange={(e) =>
+                          setExactAmounts((prev) => ({ ...prev, [mid]: e.target.value }))
+                        }
+                        placeholder="0,00"
+                        aria-label={`Kwota dla ${member?.name}`}
+                        className="num min-h-11 w-28 rounded-xl border border-line bg-surface-2 px-3 py-1 text-right text-[15px] text-ink outline-none focus:border-accent"
+                      />
+                    </div>
+                  );
+                })}
                 <p
-                  className={`text-right text-sm font-medium ${
-                    exactRemaining === 0
-                      ? "text-emerald-600 dark:text-emerald-400"
-                      : "text-rose-600 dark:text-rose-400"
-                  }`}
+                  className="mt-1 rounded-xl px-3 py-2 text-right text-[13px] font-medium"
+                  style={{
+                    background:
+                      exactRemaining === 0 ? "var(--pos-soft)" : "var(--neg-soft)",
+                    color: exactRemaining === 0 ? "var(--pos)" : "var(--neg)",
+                  }}
                 >
                   {exactRemaining === 0
                     ? "Kwoty się zgadzają"
                     : exactRemaining > 0
-                      ? `Pozostało: ${(exactRemaining / 100).toFixed(2)} zł`
-                      : `Za dużo o: ${(-exactRemaining / 100).toFixed(2)} zł`}
+                      ? `Pozostało ${formatGrosze(exactRemaining)}`
+                      : `Za dużo o ${formatGrosze(-exactRemaining)}`}
                 </p>
               </div>
             )}
@@ -339,65 +376,125 @@ export function AddEdit() {
         ) : (
           <>
             <div>
-              <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                Od kogo
+              <label htmlFor="date-settlement" className={labelClass}>
+                Data
               </label>
-              <select
-                value={fromId}
-                onChange={(e) => setFromId(e.target.value)}
-                className="min-h-11 w-full rounded-xl border border-neutral-300 bg-white px-4 py-2 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-50"
-              >
-                {allMembers.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
+              <input
+                id="date-settlement"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className={fieldClass}
+              />
             </div>
+
             <div>
-              <label className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                Do kogo
-              </label>
-              <select
-                value={toId}
-                onChange={(e) => setToId(e.target.value)}
-                className="min-h-11 w-full rounded-xl border border-neutral-300 bg-white px-4 py-2 text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-50"
-              >
+              <span className={labelClass}>Kto przelewa</span>
+              <div className="flex flex-wrap gap-2">
                 {allMembers.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
+                  <Chip
+                    key={m.id}
+                    label={m.name}
+                    seed={m.id}
+                    selected={fromId === m.id}
+                    onClick={() => setFromId(m.id)}
+                  />
                 ))}
-              </select>
+              </div>
             </div>
+
+            <div className="flex justify-center text-muted">
+              <Icon name="arrow" className="h-5 w-5 rotate-90" />
+            </div>
+
+            <div>
+              <span className={labelClass}>Kto otrzymuje</span>
+              <div className="flex flex-wrap gap-2">
+                {allMembers.map((m) => (
+                  <Chip
+                    key={m.id}
+                    label={m.name}
+                    seed={m.id}
+                    selected={toId === m.id}
+                    onClick={() => setToId(m.id)}
+                  />
+                ))}
+              </div>
+            </div>
+
             {fromId === toId && (
-              <p className="text-sm text-rose-600 dark:text-rose-400">
-                Strony rozliczenia muszą być różne.
-              </p>
+              <p className="text-[13px] text-neg">Strony rozliczenia muszą być różne.</p>
             )}
+
+            {(() => {
+              const recipient = allMembers.find((m) => m.id === toId);
+              const rows = [
+                { label: "BLIK", value: recipient?.payment?.blik },
+                { label: "Konto", value: recipient?.payment?.iban },
+              ].filter((r) => r.value);
+              if (!recipient || rows.length === 0) return null;
+
+              return (
+                <div className="card rounded-3xl p-4">
+                  <p className="mb-2 text-[13px] font-medium text-muted">
+                    Dane do przelewu &mdash; {recipient.name}
+                  </p>
+                  <ul className="space-y-2">
+                    {rows.map((r) => (
+                      <li key={r.label} className="flex items-center gap-3">
+                        <span className="w-12 shrink-0 text-[13px] text-muted">{r.label}</span>
+                        <span className="num min-w-0 flex-1 truncate text-[15px] text-ink">
+                          {r.value}
+                        </span>
+                        <button
+                          type="button"
+                          aria-label={`Kopiuj ${r.label}`}
+                          onClick={async () => {
+                            showToast(
+                              (await copyText(r.value as string))
+                                ? `${r.label} skopiowany`
+                                : "Nie udało się skopiować",
+                            );
+                          }}
+                          className="press flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-accent active:bg-surface-2"
+                        >
+                          <Icon name="copy" className="h-[18px] w-[18px]" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })()}
           </>
         )}
 
         {error && (
-          <p className="rounded-xl bg-rose-100 px-4 py-2 text-sm text-rose-900 dark:bg-rose-900/40 dark:text-rose-200">
+          <Banner tone="neg" icon="alert">
             {error}
-          </p>
+          </Banner>
         )}
       </div>
 
       <div
         style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
-        className="fixed inset-x-0 bottom-0 border-t border-neutral-200 bg-neutral-50/95 px-4 pt-3 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/95"
+        className="fixed inset-x-0 bottom-0 z-20 border-t border-line/80 bg-bg/85 px-4 pt-3 backdrop-blur-xl"
       >
         <div className="mx-auto max-w-md">
           <button
-            disabled={
-              submitting || (entryType === "expense" ? !canSubmitExpense : !canSubmitSettlement)
-            }
+            disabled={submitting || !canSubmit}
             onClick={handleSubmit}
-            className="min-h-11 w-full rounded-xl bg-teal-600 py-3 font-semibold text-white disabled:opacity-40 dark:bg-teal-500"
+            style={
+              canSubmit && !submitting
+                ? {
+                    background: "linear-gradient(135deg, var(--accent), var(--accent-2))",
+                    boxShadow: "var(--shadow-lift)",
+                  }
+                : undefined
+            }
+            className="press min-h-13 w-full rounded-2xl bg-surface-2 py-3.5 font-semibold text-on-accent disabled:text-muted"
           >
-            {submitting ? "Zapisywanie…" : "Zapisz"}
+            {submitting ? "Zapisywanie…" : editingEntry ? "Zapisz zmiany" : "Dodaj"}
           </button>
         </div>
       </div>

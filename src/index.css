@@ -1,8 +1,94 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
 
-@theme {
-  --font-sans:
-    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+/* ---------------------------------------------------------------
+   Design tokens. Light values live on :root, dark values override
+   them under prefers-color-scheme. Everything downstream consumes
+   the semantic name, so the whole app flips theme for free.
+   --------------------------------------------------------------- */
+:root {
+  color-scheme: light dark;
+
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --surface-2: #eceef2;
+  --line: #e2e5ea;
+  --ink: #0d1117;
+  --muted: #6b7280;
+
+  --accent: #4f46e5;
+  --accent-2: #7c3aed;
+  --accent-soft: #eef2ff;
+  --on-accent: #ffffff;
+
+  --pos: #047857;
+  --pos-soft: #d9f5ea;
+  --neg: #be123c;
+  --neg-soft: #ffe4e9;
+  --warn: #a16207;
+  --warn-soft: #fef3c7;
+
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.06);
+  --shadow-lift: 0 10px 30px -10px rgb(79 70 229 / 0.45);
+
+  --avatar-bg-s: 72%;
+  --avatar-bg-l: 91%;
+  --avatar-fg-s: 55%;
+  --avatar-fg-l: 32%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0a0b0f;
+    --surface: #15171d;
+    --surface-2: #1e2027;
+    --line: #262931;
+    --ink: #f2f3f5;
+    --muted: #9199a6;
+
+    --accent: #6366f1;
+    --accent-2: #8b5cf6;
+    --accent-soft: #1c1b3a;
+    --on-accent: #ffffff;
+
+    --pos: #34d399;
+    --pos-soft: #06281f;
+    --neg: #fb7185;
+    --neg-soft: #2d0c15;
+    --warn: #fbbf24;
+    --warn-soft: #2a1e05;
+
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-lift: 0 10px 30px -10px rgb(99 102 241 / 0.55);
+
+    --avatar-bg-s: 40%;
+    --avatar-bg-l: 22%;
+    --avatar-fg-s: 70%;
+    --avatar-fg-l: 74%;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+
+  --color-pos: var(--pos);
+  --color-pos-soft: var(--pos-soft);
+  --color-neg: var(--neg);
+  --color-neg-soft: var(--neg-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+
+  --font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 html,
@@ -12,9 +98,62 @@ body,
 }
 
 body {
+  background: var(--bg);
+  color: var(--ink);
   font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior-y: none;
 }
 
 * {
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Numbers that need to line up in columns. */
+.num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Deterministic per-person avatar colouring; --h is set inline. */
+.avatar {
+  background: hsl(var(--h) var(--avatar-bg-s) var(--avatar-bg-l));
+  color: hsl(var(--h) var(--avatar-fg-s) var(--avatar-fg-l));
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-card);
+}
+
+.press {
+  transition:
+    transform 140ms cubic-bezier(0.2, 0, 0, 1),
+    background-color 140ms ease,
+    opacity 140ms ease;
+}
+.press:active {
+  transform: scale(0.975);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Native controls follow the accent. */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.45);
+  cursor: pointer;
 }

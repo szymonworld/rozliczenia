@@ -2,18 +2,20 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Entry, Member } from "../../shared/types";
 import { formatGrosze } from "../lib/money";
+import { Avatar } from "./Avatar";
+import { Icon } from "./Icon";
 
 function nameOf(members: Member[], id: string) {
   return members.find((m) => m.id === id)?.name ?? "Ktoś";
 }
 
-function describe(entry: Entry, members: Member[]): string {
-  if (entry.type === "expense") {
-    const payer = nameOf(members, entry.payerId);
-    const shareNames = entry.shares.map((s) => nameOf(members, s.memberId)).join(", ");
-    return `${payer} zapłacił(a) ${formatGrosze(entry.amountGrosze)} za ${entry.description} — podzielone: ${shareNames}`;
-  }
-  return `💸 ${nameOf(members, entry.fromId)} → ${nameOf(members, entry.toId)} ${formatGrosze(entry.amountGrosze)}`;
+function previousSummary(entry: Entry): string | null {
+  const prev = entry.previousValue as Partial<Entry> | undefined;
+  if (!prev) return null;
+  const bits: string[] = [];
+  if (typeof prev.amountGrosze === "number") bits.push(formatGrosze(prev.amountGrosze));
+  if (prev.type === "expense" && prev.description) bits.push(`„${prev.description}”`);
+  return bits.length ? `Poprzednio: ${bits.join(" · ")}` : null;
 }
 
 export function EntryRow({
@@ -30,55 +32,90 @@ export function EntryRow({
   const navigate = useNavigate();
   const [showPrevious, setShowPrevious] = useState(false);
   const isDeleted = Boolean(entry.deletedAt);
+  const isExpense = entry.type === "expense";
+
+  const title = isExpense
+    ? entry.description
+    : `${nameOf(members, entry.fromId)} → ${nameOf(members, entry.toId)}`;
+
+  // "wszyscy" keeps the common case short; an actual subset is worth naming.
+  const everyone = isExpense && entry.shares.length === members.filter((m) => !m.hidden).length;
+  const subtitle = isExpense
+    ? `${nameOf(members, entry.payerId)} · ${
+        everyone ? "wszyscy" : entry.shares.map((s) => nameOf(members, s.memberId)).join(", ")
+      }`
+    : "Rozliczenie";
+
+  const prev = previousSummary(entry);
 
   return (
-    <li
-      className={`px-4 py-3 ${isDeleted ? "opacity-50" : ""}`}
-    >
-      <div className="flex items-start justify-between gap-3">
+    <li className={isDeleted ? "opacity-55" : ""}>
+      <div className="flex items-center gap-3 pl-4 pr-1.5 py-2.5">
         <button
           onClick={() => !isDeleted && navigate(`/edytuj/${entry.id}`)}
-          className="min-h-11 flex-1 text-left text-sm text-neutral-800 dark:text-neutral-100"
+          disabled={isDeleted}
+          className="flex min-w-0 flex-1 items-center gap-3 py-1 text-left"
         >
-          {describe(entry, members)}
-          <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-            {new Date(entry.date).toLocaleDateString("pl-PL")}
+          {isExpense ? (
+            <Avatar name={nameOf(members, entry.payerId)} seed={entry.payerId} size="md" />
+          ) : (
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
+              <Icon name="transfer" className="h-5 w-5" />
+            </span>
+          )}
+
+          <span className="min-w-0 flex-1">
+            <span className="flex items-baseline gap-2">
+              <span
+                className={`min-w-0 flex-1 truncate text-[15px] font-medium text-ink ${
+                  isDeleted ? "line-through" : ""
+                }`}
+              >
+                {title}
+              </span>
+              <span className="num shrink-0 text-[15px] font-semibold text-ink">
+                {formatGrosze(entry.amountGrosze)}
+              </span>
+            </span>
+            <span className="mt-0.5 block truncate text-[13px] text-muted">{subtitle}</span>
             {entry.editedAt && (
-              <button
+              <span
+                role="button"
+                tabIndex={0}
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowPrevious((v) => !v);
                 }}
-                className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                className="mt-1 inline-block rounded-full bg-warn-soft px-2 py-0.5 text-[11px] font-medium text-warn"
               >
                 edytowane
-              </button>
+              </span>
             )}
-          </div>
-          {showPrevious && entry.previousValue && (
-            <pre className="mt-1 overflow-x-auto rounded-lg bg-neutral-100 p-2 text-[11px] text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
-              {JSON.stringify(entry.previousValue, null, 2)}
-            </pre>
-          )}
+          </span>
         </button>
-        <div className="flex shrink-0 gap-1">
-          {isDeleted ? (
-            <button
-              onClick={() => onRestore(entry.id)}
-              className="min-h-11 rounded-lg px-3 text-sm font-medium text-teal-700 active:bg-teal-50 dark:text-teal-400 dark:active:bg-teal-950"
-            >
-              przywróć
-            </button>
-          ) : (
-            <button
-              onClick={() => onDelete(entry.id)}
-              className="min-h-11 rounded-lg px-3 text-sm font-medium text-rose-600 active:bg-rose-50 dark:text-rose-400 dark:active:bg-rose-950"
-            >
-              usuń
-            </button>
-          )}
-        </div>
+
+        {isDeleted ? (
+          <button
+            aria-label="Przywróć wpis"
+            onClick={() => onRestore(entry.id)}
+            className="press flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-accent active:bg-surface-2"
+          >
+            <Icon name="undo" className="h-[18px] w-[18px]" />
+          </button>
+        ) : (
+          <button
+            aria-label="Usuń wpis"
+            onClick={() => onDelete(entry.id)}
+            className="press flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted/70 active:bg-neg-soft active:text-neg"
+          >
+            <Icon name="trash" className="h-[18px] w-[18px]" />
+          </button>
+        )}
       </div>
+
+      {showPrevious && prev && (
+        <p className="mx-4 mb-3 rounded-xl bg-surface-2 px-3 py-2 text-[13px] text-muted">{prev}</p>
+      )}
     </li>
   );
 }

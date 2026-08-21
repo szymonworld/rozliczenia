@@ -1,9 +1,14 @@
+import { Avatar } from "./Avatar";
+import { Icon } from "./Icon";
+
 export function Chip({
   label,
+  seed,
   selected,
   onClick,
 }: {
   label: string;
+  seed?: string;
   selected: boolean;
   onClick: () => void;
 }) {
@@ -12,12 +17,19 @@ export function Chip({
       type="button"
       onClick={onClick}
       aria-pressed={selected}
-      className={`min-h-11 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+      className={`press flex min-h-11 items-center gap-2 rounded-full border py-1.5 pl-1.5 pr-3.5 text-sm font-medium ${
         selected
-          ? "border-teal-600 bg-teal-600 text-white dark:border-teal-500 dark:bg-teal-500"
-          : "border-neutral-300 bg-white text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
+          ? "border-transparent bg-accent text-on-accent shadow-sm"
+          : "border-line bg-surface text-muted"
       }`}
     >
+      {selected ? (
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20">
+          <Icon name="check" className="h-4 w-4" strokeWidth={2.5} />
+        </span>
+      ) : (
+        <Avatar name={label} seed={seed} size="sm" />
+      )}
       {label}
     </button>
   );

@@ -135,6 +135,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         updated = { ...ledger, members };
         break;
       }
+      case "setMemberPayment": {
+        if (!ledger.members.some((m) => m.id === body.memberId)) {
+          res.status(404).json({ error: "Nie znaleziono osoby" });
+          return;
+        }
+        const blik = body.payment?.blik?.trim();
+        const iban = body.payment?.iban?.trim();
+        const members = ledger.members.map((m) =>
+          m.id === body.memberId
+            ? {
+                ...m,
+                payment: {
+                  ...(blik ? { blik } : {}),
+                  ...(iban ? { iban } : {}),
+                },
+              }
+            : m,
+        );
+        updated = { ...ledger, members };
+        break;
+      }
+      case "renameMember": {
+        const name = body.name?.trim();
+        if (!name) {
+          res.status(400).json({ error: "Imię jest wymagane" });
+          return;
+        }
+        if (!ledger.members.some((m) => m.id === body.memberId)) {
+          res.status(404).json({ error: "Nie znaleziono osoby" });
+          return;
+        }
+        // Only the display name changes — ids stay put so history keeps resolving.
+        const members = ledger.members.map((m) =>
+          m.id === body.memberId ? { ...m, name } : m,
+        );
+        updated = { ...ledger, members };
+        break;
+      }
       default:
         res.status(400).json({ error: "Nieznana akcja" });
         return;
