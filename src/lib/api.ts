@@ -1,4 +1,4 @@
-import type { Entry, EntryWriteRequest, Ledger } from "../../shared/types";
+import type { Entry, EntryWriteRequest, Ledger, LedgerSettings } from "../../shared/types";
 
 const CACHE_KEY = "rozliczenia:ledger-cache";
 const PENDING_KEY = "rozliczenia:pending-entries";
@@ -138,4 +138,16 @@ export async function setMemberPayment(
 
 export async function renameMember(memberId: string, name: string): Promise<Ledger> {
   return postEntry({ action: "renameMember", memberId, name });
+}
+
+export async function confirmSettlement(id: string, memberId: string): Promise<Ledger> {
+  return postEntry({ action: "confirmSettlement", id, memberId });
+}
+
+export async function rejectSettlement(id: string, memberId: string): Promise<Ledger> {
+  return postEntry({ action: "rejectSettlement", id, memberId });
+}
+
+export async function setSettings(settings: LedgerSettings): Promise<Ledger> {
+  return postEntry({ action: "setSettings", settings });
 }

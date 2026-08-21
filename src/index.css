@@ -37,8 +37,9 @@
   --avatar-fg-l: 32%;
 }
 
+/* System preference, unless the user explicitly chose light. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0a0b0f;
     --surface: #15171d;
     --surface-2: #1e2027;
@@ -66,6 +67,36 @@
     --avatar-fg-s: 70%;
     --avatar-fg-l: 74%;
   }
+}
+
+/* Explicit choice always wins over the system preference. */
+:root[data-theme="dark"] {
+    --bg: #0a0b0f;
+    --surface: #15171d;
+    --surface-2: #1e2027;
+    --line: #262931;
+    --ink: #f2f3f5;
+    --muted: #9199a6;
+
+    --accent: #6366f1;
+    --accent-2: #8b5cf6;
+    --accent-soft: #1c1b3a;
+    --on-accent: #ffffff;
+
+    --pos: #34d399;
+    --pos-soft: #06281f;
+    --neg: #fb7185;
+    --neg-soft: #2d0c15;
+    --warn: #fbbf24;
+    --warn-soft: #2a1e05;
+
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-lift: 0 10px 30px -10px rgb(99 102 241 / 0.55);
+
+    --avatar-bg-s: 40%;
+    --avatar-bg-l: 22%;
+    --avatar-fg-s: 70%;
+    --avatar-fg-l: 74%;
 }
 
 @theme inline {

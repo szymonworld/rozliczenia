@@ -6,7 +6,16 @@ import { Icon } from "../components/Icon";
 import { useIdentity } from "../context/IdentityContext";
 import { useLedger } from "../context/LedgerContext";
 import { useToast } from "../context/ToastContext";
-import { addMember, renameMember, setMemberHidden, setMemberPayment } from "../lib/api";
+import { useTheme, type ThemePreference } from "../context/ThemeContext";
+import { SegmentedControl } from "../components/SegmentedControl";
+import { useInstallPrompt } from "../lib/useInstallPrompt";
+import {
+  addMember,
+  renameMember,
+  setMemberHidden,
+  setMemberPayment,
+  setSettings,
+} from "../lib/api";
 import { buildCsv, downloadFile } from "../lib/share";
 import type { Ledger, Member } from "../../shared/types";
 
@@ -88,6 +97,8 @@ export function Settings() {
   const { ledger, applyLedger } = useLedger();
   const { whoAmI, setWhoAmI } = useIdentity();
   const { showToast } = useToast();
+  const { theme, setTheme } = useTheme();
+  const { canInstall, installed, promptInstall } = useInstallPrompt();
   const [newName, setNewName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -151,6 +162,8 @@ export function Settings() {
     );
   }
 
+  const requireConfirmation = ledger.settings?.requireConfirmation ?? false;
+
   return (
     <div className="flex min-h-dvh flex-col bg-bg">
       <Header title="Ustawienia" back right={<span />} />
@@ -163,6 +176,56 @@ export function Settings() {
             {error}
           </Banner>
         )}
+
+        <section>
+          <h2 className={sectionTitle}>Wygląd</h2>
+          <SegmentedControl
+            value={theme}
+            onChange={(v: ThemePreference) => setTheme(v)}
+            options={[
+              { value: "system", label: "Systemowy" },
+              { value: "light", label: "Jasny" },
+              { value: "dark", label: "Ciemny" },
+            ]}
+          />
+        </section>
+
+        <section>
+          <h2 className={sectionTitle}>Potwierdzanie przelewów</h2>
+          <button
+            onClick={() =>
+              run(
+                () => setSettings({ requireConfirmation: !requireConfirmation }),
+                "Nie udało się zmienić ustawienia",
+              )
+            }
+            disabled={busy}
+            aria-pressed={requireConfirmation}
+            className="press card flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block text-[15px] font-medium text-ink">
+                Wymagaj potwierdzenia
+              </span>
+              <span className="block text-[13px] leading-relaxed text-muted">
+                {requireConfirmation
+                  ? "Przelew zmniejsza dług dopiero, gdy odbiorca potwierdzi."
+                  : "Przelew liczy się od razu; potwierdzenie jest tylko informacją."}
+              </span>
+            </span>
+            <span
+              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+                requireConfirmation ? "bg-accent" : "bg-surface-2"
+              }`}
+            >
+              <span
+                className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-[left] ${
+                  requireConfirmation ? "left-6" : "left-1"
+                }`}
+              />
+            </span>
+          </button>
+        </section>
 
         <section>
           <h2 className={sectionTitle}>Kim jesteś</h2>
@@ -268,6 +331,46 @@ export function Settings() {
             >
               <Icon name="plus" className="h-5 w-5" strokeWidth={2.25} />
             </button>
+          </div>
+        </section>
+
+        <section>
+          <h2 className={sectionTitle}>Aplikacja</h2>
+          <div className="card divide-y divide-line overflow-hidden rounded-2xl">
+            {installed ? (
+              <p className="flex items-center gap-3 px-4 py-3 text-[15px] text-muted">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-pos-soft text-pos">
+                  <Icon name="check" className="h-[18px] w-[18px]" strokeWidth={2.5} />
+                </span>
+                Aplikacja jest zainstalowana
+              </p>
+            ) : canInstall ? (
+              <button
+                onClick={async () => {
+                  if (await promptInstall()) showToast("Zainstalowano aplikację");
+                }}
+                className="press flex w-full items-center gap-3 px-4 py-3 text-left active:bg-surface-2"
+              >
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-soft text-accent">
+                  <Icon name="plus" className="h-[18px] w-[18px]" strokeWidth={2.25} />
+                </span>
+                <span className="flex-1">
+                  <span className="block text-[15px] font-medium text-ink">
+                    Zainstaluj na telefonie
+                  </span>
+                  <span className="block text-[13px] text-muted">
+                    Ikona na ekranie głównym, bez paska przeglądarki
+                  </span>
+                </span>
+                <Icon name="chevron" className="h-4 w-4 text-muted/60" />
+              </button>
+            ) : (
+              <p className="px-4 py-3 text-[13px] leading-relaxed text-muted">
+                Aby zainstalować: w Safari wybierz <strong className="text-ink">Udostępnij →
+                Do ekranu początkowego</strong>, w Chrome menu <strong className="text-ink">⋮ →
+                Zainstaluj aplikację</strong>.
+              </p>
+            )}
           </div>
         </section>
 

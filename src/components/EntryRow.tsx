@@ -2,8 +2,15 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Entry, Member } from "../../shared/types";
 import { formatGrosze } from "../lib/money";
+import { settlementStatus } from "../lib/ledgerView";
 import { Avatar } from "./Avatar";
 import { Icon } from "./Icon";
+
+const statusStyles = {
+  confirmed: { label: "potwierdzone", className: "bg-pos-soft text-pos" },
+  rejected: { label: "nie dotarło", className: "bg-neg-soft text-neg" },
+  pending: { label: "czeka na potwierdzenie", className: "bg-warn-soft text-warn" },
+} as const;
 
 function nameOf(members: Member[], id: string) {
   return members.find((m) => m.id === id)?.name ?? "Ktoś";
@@ -78,19 +85,30 @@ export function EntryRow({
               </span>
             </span>
             <span className="mt-0.5 block truncate text-[13px] text-muted">{subtitle}</span>
-            {entry.editedAt && (
-              <span
-                role="button"
-                tabIndex={0}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowPrevious((v) => !v);
-                }}
-                className="mt-1 inline-block rounded-full bg-warn-soft px-2 py-0.5 text-[11px] font-medium text-warn"
-              >
-                edytowane
-              </span>
-            )}
+            <span className="mt-1 flex flex-wrap gap-1.5">
+              {!isExpense && (
+                <span
+                  className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                    statusStyles[settlementStatus(entry)].className
+                  }`}
+                >
+                  {statusStyles[settlementStatus(entry)].label}
+                </span>
+              )}
+              {entry.editedAt && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowPrevious((v) => !v);
+                  }}
+                  className="inline-block rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-muted"
+                >
+                  edytowane
+                </span>
+              )}
+            </span>
           </span>
         </button>
 

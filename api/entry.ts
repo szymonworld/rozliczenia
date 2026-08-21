@@ -135,6 +135,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         updated = { ...ledger, members };
         break;
       }
+      case "confirmSettlement":
+      case "rejectSettlement": {
+        const idx = ledger.entries.findIndex((e) => e.id === body.id);
+        if (idx === -1) {
+          res.status(404).json({ error: "Nie znaleziono wpisu" });
+          return;
+        }
+        const target = ledger.entries[idx];
+        if (target.type !== "settlement") {
+          res.status(400).json({ error: "Tylko rozliczenie można potwierdzić" });
+          return;
+        }
+        // Only the person who was supposed to receive the money can rule on it.
+        if (target.toId !== body.memberId) {
+          res.status(403).json({ error: "Tylko odbiorca może potwierdzić przelew" });
+          return;
+        }
+        const now = new Date().toISOString();
+        const entries = [...ledger.entries];
+        entries[idx] =
+          body.action === "confirmSettlement"
+            ? {
+                ...target,
+                confirmedAt: now,
+                confirmedBy: body.memberId,
+                rejectedAt: undefined,
+                rejectedBy: undefined,
+              }
+            : {
+                ...target,
+                rejectedAt: now,
+                rejectedBy: body.memberId,
+                confirmedAt: undefined,
+                confirmedBy: undefined,
+              };
+        updated = { ...ledger, entries };
+        break;
+      }
+      case "setSettings": {
+        updated = {
+          ...ledger,
+          settings: { ...ledger.settings, ...body.settings },
+        };
+        break;
+      }
       case "setMemberPayment": {
         if (!ledger.members.some((m) => m.id === body.memberId)) {
           res.status(404).json({ error: "Nie znaleziono osoby" });

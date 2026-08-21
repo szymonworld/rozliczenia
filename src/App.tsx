@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { IdentityProvider, useIdentity } from "./context/IdentityContext";
 import { LedgerProvider } from "./context/LedgerContext";
 import { ToastProvider } from "./context/ToastContext";
+import { ThemeProvider } from "./context/ThemeContext";
 import { NamePicker } from "./screens/NamePicker";
 import { Home } from "./screens/Home";
 import { History } from "./screens/History";
@@ -33,14 +34,16 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <IdentityProvider>
-      <LedgerProvider>
-        <ToastProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </ToastProvider>
-      </LedgerProvider>
-    </IdentityProvider>
+    <ThemeProvider>
+      <IdentityProvider>
+        <LedgerProvider>
+          <ToastProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </ToastProvider>
+        </LedgerProvider>
+      </IdentityProvider>
+    </ThemeProvider>
   );
 }

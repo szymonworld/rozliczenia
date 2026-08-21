@@ -51,14 +51,30 @@ export type SettlementEntry = {
   editedBy?: string;
   previousValue?: Partial<Omit<SettlementEntry, "id" | "type">>;
   deletedAt?: string;
+  /** The recipient acknowledged the money arrived. */
+  confirmedAt?: string;
+  confirmedBy?: string;
+  /** The recipient says it never arrived — always excluded from balances. */
+  rejectedAt?: string;
+  rejectedBy?: string;
 };
 
 export type Entry = ExpenseEntry | SettlementEntry;
+
+export type LedgerSettings = {
+  /**
+   * When true, a settlement only counts towards balances once the recipient
+   * confirms it. When false (default) the money is assumed to have moved and
+   * confirmation is just an acknowledgement.
+   */
+  requireConfirmation?: boolean;
+};
 
 export type Ledger = {
   slug: string;
   members: Member[];
   entries: Entry[];
+  settings?: LedgerSettings;
 };
 
 // Request body accepted by POST /api/entry
@@ -70,4 +86,7 @@ export type EntryWriteRequest =
   | { action: "addMember"; name: string }
   | { action: "setMemberHidden"; memberId: string; hidden: boolean }
   | { action: "setMemberPayment"; memberId: string; payment: PaymentDetails }
-  | { action: "renameMember"; memberId: string; name: string };
+  | { action: "renameMember"; memberId: string; name: string }
+  | { action: "confirmSettlement"; id: string; memberId: string }
+  | { action: "rejectSettlement"; id: string; memberId: string }
+  | { action: "setSettings"; settings: LedgerSettings };

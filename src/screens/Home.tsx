@@ -9,12 +9,18 @@ import { BalanceCard } from "../components/BalanceCard";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { TransferList } from "../components/TransferList";
 import { PairwiseMatrix } from "../components/PairwiseMatrix";
+import { ConfirmationCard } from "../components/ConfirmationCard";
+import { PaySheet } from "../components/PaySheet";
 import { useIdentity } from "../context/IdentityContext";
 import { useLedger } from "../context/LedgerContext";
 import { useToast } from "../context/ToastContext";
 import { computeNetBalances, computePairwiseDebts, suggestTransfers } from "../lib/balances";
 import type { SuggestedTransfer } from "../lib/balances";
+import { countableEntries, pendingConfirmations, visibleEntries } from "../lib/ledgerView";
+import { confirmSettlement, rejectSettlement } from "../lib/api";
 import { buildSummaryText, shareText } from "../lib/share";
+import { formatGrosze } from "../lib/money";
+import type { Ledger } from "../../shared/types";
 
 /** Polish plural form for a count (1 / 2-4 / 5+). */
 function plural(n: number, one: string, few: string, many: string) {
@@ -26,22 +32,26 @@ function plural(n: number, one: string, few: string, many: string) {
 }
 
 export function Home() {
-  const { ledger, refetch, refreshing, isOffline, syncWarning } = useLedger();
+  const { ledger, refetch, refreshing, isOffline, syncWarning, applyLedger } = useLedger();
   const { whoAmI } = useIdentity();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const [view, setView] = useState<"transfers" | "matrix">("transfers");
+  const [paying, setPaying] = useState<SuggestedTransfer | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const activeEntries = useMemo(() => ledger?.entries.filter((e) => !e.deletedAt) ?? [], [ledger]);
+  const counted = useMemo(() => countableEntries(ledger), [ledger]);
+  const shown = useMemo(() => visibleEntries(ledger), [ledger]);
+  const pending = useMemo(() => pendingConfirmations(ledger, whoAmI), [ledger, whoAmI]);
 
   const balances = useMemo(
-    () => (ledger ? computeNetBalances(ledger.members, activeEntries) : {}),
-    [ledger, activeEntries],
+    () => (ledger ? computeNetBalances(ledger.members, counted) : {}),
+    [ledger, counted],
   );
   const transfers = useMemo(() => suggestTransfers(balances), [balances]);
   const debts = useMemo(
-    () => (ledger ? computePairwiseDebts(ledger.members, activeEntries) : {}),
-    [ledger, activeEntries],
+    () => (ledger ? computePairwiseDebts(ledger.members, counted) : {}),
+    [ledger, counted],
   );
 
   const myBalance = whoAmI ? (balances[whoAmI] ?? 0) : 0;
@@ -50,24 +60,50 @@ export function Home() {
 
   const subtitle =
     myBalance === 0
-      ? activeEntries.length === 0
+      ? shown.length === 0
         ? "Dodaj pierwszy wydatek, aby zacząć."
         : "Nie masz żadnych zaległości."
       : myBalance > 0
         ? `Od ${myTransfers.length} ${peopleWord}`
         : `Do ${myTransfers.length} ${peopleWord}`;
 
-  const onSelectTransfer = (t: SuggestedTransfer) => {
-    navigate("/dodaj", { state: { settlement: t } });
+  const run = async (fn: () => Promise<Ledger>, fallback: string) => {
+    setBusy(true);
+    try {
+      applyLedger(await fn());
+      return true;
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : fallback);
+      return false;
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleShare = async () => {
     if (!ledger) return;
-    const text = buildSummaryText(ledger.members, balances, transfers);
-    const result = await shareText("Rozliczenia", text);
+    const result = await shareText(
+      "Rozliczenia",
+      buildSummaryText(ledger.members, balances, transfers),
+    );
     if (result === "copied") showToast("Podsumowanie skopiowane do schowka");
     else if (result === "failed") showToast("Nie udało się udostępnić podsumowania");
   };
+
+  const handleRemind = async (t: SuggestedTransfer) => {
+    if (!ledger) return;
+    const debtor = ledger.members.find((m) => m.id === t.fromId);
+    const me = ledger.members.find((m) => m.id === t.toId);
+    const text =
+      `Cześć ${debtor?.name}! Przypominam o ${formatGrosze(t.amountGrosze)} ` +
+      `za wspólne wydatki. Szczegóły w Rozliczeniach. — ${me?.name}`;
+    const result = await shareText("Przypomnienie", text);
+    if (result === "copied") showToast("Przypomnienie skopiowane do schowka");
+    else if (result === "failed") showToast("Nie udało się udostępnić przypomnienia");
+  };
+
+  const payRecipient =
+    paying && ledger ? ledger.members.find((m) => m.id === paying.toId) : undefined;
 
   if (!ledger) {
     return (
@@ -121,6 +157,20 @@ export function Home() {
             <p className="text-center text-xs font-medium text-muted">Odświeżanie…</p>
           )}
 
+          <ConfirmationCard
+            settlements={pending}
+            members={ledger.members}
+            busy={busy}
+            onConfirm={async (id) => {
+              if (whoAmI && (await run(() => confirmSettlement(id, whoAmI), "Nie udało się potwierdzić")))
+                showToast("Potwierdzono otrzymanie");
+            }}
+            onReject={async (id) => {
+              if (whoAmI && (await run(() => rejectSettlement(id, whoAmI), "Nie udało się odrzucić")))
+                showToast("Oznaczono jako nieotrzymane");
+            }}
+          />
+
           <BalanceCard amountGrosze={myBalance} subtitle={subtitle} />
 
           <SegmentedControl
@@ -137,7 +187,12 @@ export function Home() {
               members={ledger.members}
               transfers={transfers}
               whoAmI={whoAmI}
-              onSelect={onSelectTransfer}
+              onSelect={(t) =>
+                t.fromId === whoAmI
+                  ? setPaying(t)
+                  : navigate("/dodaj", { state: { settlement: t } })
+              }
+              onRemind={handleRemind}
             />
           ) : (
             <PairwiseMatrix members={ledger.members} debts={debts} />
@@ -154,7 +209,7 @@ export function Home() {
               <span className="flex-1">
                 <span className="block text-[15px] font-medium text-ink">Historia wpisów</span>
                 <span className="block text-[13px] text-muted">
-                  {activeEntries.length} {plural(activeEntries.length, "wpis", "wpisy", "wpisów")}
+                  {shown.length} {plural(shown.length, "wpis", "wpisy", "wpisów")}
                 </span>
               </span>
               <Icon name="chevron" className="h-4 w-4 text-muted/60" />
@@ -176,6 +231,20 @@ export function Home() {
         </div>
       </PullToRefresh>
       <Fab />
+
+      {paying && payRecipient && (
+        <PaySheet
+          recipient={payRecipient}
+          amountGrosze={paying.amountGrosze}
+          title="Rozliczenie wydatków"
+          onClose={() => setPaying(null)}
+          onMarkSent={() => {
+            const t = paying;
+            setPaying(null);
+            navigate("/dodaj", { state: { settlement: t } });
+          }}
+        />
+      )}
     </div>
   );
 }
