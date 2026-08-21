@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getLedger, saveLedger } from "./_lib/storage";
-import { GROUP_SLUG } from "../shared/types";
-import type { Entry, EntryWriteRequest, Ledger } from "../shared/types";
+import { getLedger, saveLedger } from "./_lib/storage.js";
+import { GROUP_SLUG } from "../shared/types.js";
+import type { Entry, EntryWriteRequest, Ledger } from "../shared/types.js";
 
 function validateEntry(entry: Entry): string | null {
   if (entry.type === "expense") {

@@ -3,8 +3,8 @@
 // BLOB_READ_WRITE_TOKEN. This is the ONLY code that touches the Blob token.
 import { promises as fs } from "fs";
 import path from "path";
-import type { Ledger } from "../../shared/types";
-import { GROUP_SLUG } from "../../shared/types";
+import type { Ledger } from "../../shared/types.js";
+import { GROUP_SLUG } from "../../shared/types.js";
 
 function seedLedger(): Ledger {
   const now = new Date().toISOString();

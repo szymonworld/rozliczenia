@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getLedger } from "./_lib/storage";
-import { GROUP_SLUG } from "../shared/types";
+import { getLedger } from "./_lib/storage.js";
+import { GROUP_SLUG } from "../shared/types.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") {
