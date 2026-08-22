@@ -232,23 +232,26 @@ export function Home() {
               </span>
               <Icon name="chevron" className="h-4 w-4 text-muted/60" />
             </button>
-            <button
-              onClick={() => navigate("/nowe")}
-              className="press flex w-full items-center gap-3 px-4 py-3 text-left active:bg-surface-2"
-            >
-              <span
-                className="flex h-9 w-9 items-center justify-center rounded-full text-on-accent"
-                style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-2))" }}
-              >
-                <Icon name="plus" className="h-[18px] w-[18px]" strokeWidth={2.25} />
-              </span>
-              <span className="flex-1">
-                <span className="block text-[15px] font-medium text-ink">Nowe wydarzenie</span>
-                <span className="block text-[13px] text-muted">Inni ludzie, osobny link</span>
-              </span>
-              <Icon name="chevron" className="h-4 w-4 text-muted/60" />
-            </button>
           </div>
+
+          {/* Deliberately its own card: this isn't about the current group's
+              expenses, it spins up an unrelated one with its own people. */}
+          <button
+            onClick={() => navigate("/nowe")}
+            className="press card flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left active:bg-surface-2"
+          >
+            <span
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-on-accent"
+              style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-2))" }}
+            >
+              <Icon name="plus" className="h-[18px] w-[18px]" strokeWidth={2.25} />
+            </span>
+            <span className="flex-1">
+              <span className="block text-[15px] font-medium text-ink">Nowe wydarzenie</span>
+              <span className="block text-[13px] text-muted">Inni ludzie, osobny link</span>
+            </span>
+            <Icon name="chevron" className="h-4 w-4 shrink-0 text-muted/60" />
+          </button>
         </div>
       </PullToRefresh>
       <Fab />

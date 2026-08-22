@@ -71,6 +71,10 @@ export function AddEdit() {
       : selectableMembers.filter((m) => !m.hidden).map((m) => m.id),
   );
   const [exactSplit, setExactSplit] = useState(false);
+  // Only meaningful when adding a fresh expense you paid: people who already
+  // gave you their share get a settlement recorded alongside it, so the
+  // expense stays in history but their part never shows up as owed.
+  const [alreadyPaidIds, setAlreadyPaidIds] = useState<string[]>([]);
   const [exactAmounts, setExactAmounts] = useState<Record<string, string>>(() => {
     if (initialExpense) {
       const map: Record<string, string> = {};
@@ -112,6 +116,19 @@ export function AddEdit() {
     totalGrosze !== null && participantIds.length > 0 && !exactSplit
       ? Math.floor(totalGrosze / participantIds.length)
       : null;
+
+  const showAlreadyPaid =
+    entryType === "expense" && !editingEntry && whoAmI !== "" && payerId === whoAmI;
+  const owingParticipants = participantIds.filter((mid) => mid !== payerId);
+  const allOwingSelected =
+    owingParticipants.length > 0 &&
+    owingParticipants.every((mid) => alreadyPaidIds.includes(mid));
+  const toggleAllPaid = () =>
+    setAlreadyPaidIds(allOwingSelected ? [] : owingParticipants);
+  const togglePaid = (memberId: string) =>
+    setAlreadyPaidIds((prev) =>
+      prev.includes(memberId) ? prev.filter((id2) => id2 !== memberId) : [...prev, memberId],
+    );
 
   const canSubmitExpense =
     totalGrosze !== null &&
@@ -166,7 +183,46 @@ export function AddEdit() {
             createdAt: new Date().toISOString(),
             createdBy: whoAmI,
           };
-          applyLedger(await createEntry(entry));
+          let latest = await createEntry(entry);
+
+          const toSettle = owingParticipants.filter((mid) => alreadyPaidIds.includes(mid));
+          if (toSettle.length > 0) {
+            const shareOf = Object.fromEntries(shares.map((s) => [s.memberId, s.amountGrosze]));
+            const failedNames: string[] = [];
+            for (const memberId of toSettle) {
+              const amount = shareOf[memberId];
+              if (!amount) continue;
+              try {
+                latest = await createEntry({
+                  id: ulid(),
+                  type: "settlement",
+                  fromId: memberId,
+                  toId: payerId,
+                  amountGrosze: amount,
+                  date,
+                  createdAt: new Date().toISOString(),
+                  createdBy: whoAmI,
+                  // Recorded by the recipient, so it counts as confirmed on
+                  // arrival — there is no one else left to confirm it.
+                  confirmedAt: new Date().toISOString(),
+                  confirmedBy: whoAmI,
+                });
+              } catch {
+                failedNames.push(allMembers.find((m) => m.id === memberId)?.name ?? memberId);
+              }
+            }
+            if (failedNames.length > 0) {
+              showToast(`Wydatek zapisany, ale nie oznaczono: ${failedNames.join(", ")}`);
+            } else {
+              showToast(
+                toSettle.length === 1
+                  ? "Oznaczono jako otrzymane"
+                  : `Oznaczono jako otrzymane od ${toSettle.length} osób`,
+              );
+            }
+          }
+
+          applyLedger(latest);
         }
       } else {
         if (editingEntry) {
@@ -373,6 +429,58 @@ export function AddEdit() {
                       : exactRemaining > 0
                         ? `Pozostało ${formatGrosze(exactRemaining)}`
                         : `Za dużo o ${formatGrosze(-exactRemaining)}`}
+                  </p>
+                </div>
+              )}
+
+              {showAlreadyPaid && owingParticipants.length > 0 && (
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <span className="text-[13px] font-medium text-muted">Kto już oddał?</span>
+                    <button
+                      type="button"
+                      onClick={toggleAllPaid}
+                      className="press rounded-full px-2 py-1 text-[13px] font-medium text-accent"
+                    >
+                      {allOwingSelected ? "Odznacz wszystkich" : "Zaznacz wszystkich"}
+                    </button>
+                  </div>
+                  <ul className="card divide-y divide-line overflow-hidden rounded-2xl">
+                    {owingParticipants.map((mid) => {
+                      const member = allMembers.find((m) => m.id === mid);
+                      const shareAmount = exactSplit
+                        ? (parsePlnToGrosze(exactAmounts[mid] ?? "0") ?? 0)
+                        : perPerson;
+                      const paid = alreadyPaidIds.includes(mid);
+                      return (
+                        <li key={mid}>
+                          <button
+                            type="button"
+                            onClick={() => togglePaid(mid)}
+                            className="press flex w-full items-center gap-3 px-4 py-3 text-left active:bg-surface-2"
+                          >
+                            <Avatar name={member?.name ?? "?"} seed={mid} size="sm" />
+                            <span className="flex-1 text-[15px] text-ink">{member?.name}</span>
+                            {shareAmount !== null && (
+                              <span className="num text-[13px] text-muted">
+                                {formatGrosze(shareAmount)}
+                              </span>
+                            )}
+                            <span
+                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+                                paid ? "bg-pos text-on-accent" : "border border-line"
+                              }`}
+                            >
+                              {paid && <Icon name="check" className="h-3.5 w-3.5" strokeWidth={3} />}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p className="mt-2 px-1 text-[13px] leading-relaxed text-muted">
+                    Wydatek zostaje w historii — zaznaczone osoby po prostu od razu wychodzą na
+                    zero, bez osobnego wpisywania rozliczenia.
                   </p>
                 </div>
               )}
