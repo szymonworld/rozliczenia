@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Entry, Member } from "../../shared/types";
-import { formatGrosze } from "../lib/money";
+import { formatForeign, formatGrosze } from "../lib/money";
 import { settlementStatus } from "../lib/ledgerView";
 import { categoryOf } from "../lib/categories";
 import { Avatar } from "./Avatar";
@@ -92,8 +92,15 @@ export function EntryRow({
               >
                 {title}
               </span>
-              <span className="num shrink-0 text-[15px] font-semibold text-ink">
+              <span className="num shrink-0 text-right text-[15px] font-semibold text-ink">
                 {formatGrosze(entry.amountGrosze)}
+                {/* What was actually typed, so a foreign expense is
+                    recognisable without opening it. */}
+                {entry.type === "expense" && entry.foreign && (
+                  <span className="block text-[12px] font-normal text-muted">
+                    {formatForeign(entry.foreign.amountMinor, entry.foreign.code)}
+                  </span>
+                )}
               </span>
             </span>
             <span className="mt-0.5 block truncate text-[13px] text-muted">{subtitle}</span>

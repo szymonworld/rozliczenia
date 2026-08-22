@@ -3,6 +3,9 @@ import {
   formatGrosze,
   groszeToInputValue,
   parsePlnToGrosze,
+  foreignToBaseGrosze,
+  formatForeign,
+  parseRate,
   splitByWeights,
   splitEqual,
 } from "../money";
@@ -146,5 +149,56 @@ describe("splitByWeights", () => {
         expect(sum).toBe(total);
       }
     }
+  });
+});
+
+describe("foreignToBaseGrosze", () => {
+  it("converts minor units at the given rate", () => {
+    // 30,00 EUR at 4,30 = 129,00 zł
+    expect(foreignToBaseGrosze(3000, 4.3)).toBe(12900);
+  });
+
+  it("rounds to whole grosze rather than carrying a fraction", () => {
+    // 10,01 EUR at 4,37 = 43,7437 zł -> 43,74
+    expect(foreignToBaseGrosze(1001, 4.37)).toBe(4374);
+    expect(Number.isInteger(foreignToBaseGrosze(333, 4.3333))).toBe(true);
+  });
+
+  it("handles a rate below one", () => {
+    // 100,00 CZK at 0,17 = 17,00 zł
+    expect(foreignToBaseGrosze(10000, 0.17)).toBe(1700);
+  });
+});
+
+describe("parseRate", () => {
+  it("accepts comma and dot alike", () => {
+    expect(parseRate("4,30")).toBe(4.3);
+    expect(parseRate("4.30")).toBe(4.3);
+  });
+
+  it("allows the precision a real rate needs", () => {
+    expect(parseRate("0,043210")).toBe(0.04321);
+  });
+
+  it("rejects rates that would zero out or invert every expense", () => {
+    expect(parseRate("0")).toBeNull();
+    expect(parseRate("0,00")).toBeNull();
+    expect(parseRate("-4,3")).toBeNull();
+  });
+
+  it("rejects anything that is not a number", () => {
+    expect(parseRate("")).toBeNull();
+    expect(parseRate("abc")).toBeNull();
+    expect(parseRate("4,3,2")).toBeNull();
+  });
+});
+
+describe("formatForeign", () => {
+  it("formats in the given currency", () => {
+    expect(formatForeign(3000, "EUR")).toContain("30,00");
+  });
+
+  it("falls back readably on a bad code instead of throwing", () => {
+    expect(formatForeign(3000, "NOTACODE")).toBe("30,00 NOTACODE");
   });
 });

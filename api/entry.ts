@@ -303,6 +303,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         break;
       }
       case "setSettings": {
+        if (body.settings.currency === null) {
+          const { currency: _dropped, ...keptSettings } = ledger.settings ?? {};
+          const { currency: _ignored, ...incoming } = body.settings;
+          updated = { ...ledger, settings: { ...keptSettings, ...incoming } };
+          break;
+        }
         const settings = { ...ledger.settings, ...body.settings };
         if (settings.groupName !== undefined) {
           const name = settings.groupName.trim().slice(0, 60);

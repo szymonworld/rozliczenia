@@ -32,6 +32,11 @@ export type ExpenseEntry = {
   date: string; // ISO date (yyyy-mm-dd)
   /** Absent on entries created before categories existed — treat as "other". */
   category?: ExpenseCategory;
+  /**
+   * Set when the amount was typed in the group's second currency.
+   * `amountGrosze` is still the source of truth; this is what to show.
+   */
+  foreign?: ForeignAmount;
   shares: Share[];
   createdAt: string;
   createdBy: string;
@@ -64,6 +69,30 @@ export type SettlementEntry = {
 
 export type Entry = ExpenseEntry | SettlementEntry;
 
+/**
+ * A second currency the group can enter amounts in. Balances stay in base
+ * grosze — conversion happens once, when the expense is written — so no
+ * balance or statistic ever depends on a rate that might change later.
+ */
+export type CurrencySettings = {
+  /** ISO 4217 code, e.g. "EUR". */
+  code: string;
+  /** Base-currency units per 1 unit of `code`. 4.3 means 1 EUR = 4,30 zł. */
+  rate: number;
+};
+
+/** What an amount looked like before it was converted to base grosze. */
+export type ForeignAmount = {
+  code: string;
+  /** Amount in the foreign currency's minor units, e.g. eurocents. */
+  amountMinor: number;
+  /**
+   * The rate used at entry time. Kept per entry on purpose: changing the
+   * group's rate later must not silently rewrite what past expenses cost.
+   */
+  rate: number;
+};
+
 export type LedgerSettings = {
   /**
    * What this group is called — shown as the app's title. Free-form, so
@@ -77,6 +106,8 @@ export type LedgerSettings = {
    * confirmation is just an acknowledgement.
    */
   requireConfirmation?: boolean;
+  /** Absent means the group only ever deals in the base currency. Null clears it. */
+  currency?: CurrencySettings | null;
 };
 
 export type Ledger = {

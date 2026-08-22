@@ -68,7 +68,22 @@ export async function copyText(text: string): Promise<boolean> {
 
 /** CSV of every entry, for spreadsheets. Semicolon-delimited for Excel PL. */
 export function buildCsv(members: Member[], entries: Entry[]): string {
-  const head = ["data", "typ", "opis", "kwota_pln", "zaplacil", "od", "do", "podzial", "usuniety"];
+  // waluta/kwota_waluta/kurs stay empty for base-currency rows, so a
+  // spreadsheet of PLN-only expenses looks exactly as it did before.
+  const head = [
+    "data",
+    "typ",
+    "opis",
+    "kwota_pln",
+    "waluta",
+    "kwota_waluta",
+    "kurs",
+    "zaplacil",
+    "od",
+    "do",
+    "podzial",
+    "usuniety",
+  ];
   const rows = [...entries]
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
     .map((e) => {
@@ -82,6 +97,9 @@ export function buildCsv(members: Member[], entries: Entry[]): string {
           "wydatek",
           e.description,
           amount,
+          e.foreign?.code ?? "",
+          e.foreign ? (e.foreign.amountMinor / 100).toFixed(2).replace(".", ",") : "",
+          e.foreign ? String(e.foreign.rate).replace(".", ",") : "",
           nameOf(members, e.payerId),
           "",
           "",
@@ -94,6 +112,9 @@ export function buildCsv(members: Member[], entries: Entry[]): string {
         "rozliczenie",
         "",
         amount,
+        "",
+        "",
+        "",
         "",
         nameOf(members, e.fromId),
         nameOf(members, e.toId),

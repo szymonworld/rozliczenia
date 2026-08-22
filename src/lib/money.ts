@@ -31,6 +31,41 @@ export function parsePlnToGrosze(input: string): number | null {
   return Math.round(value * 100);
 }
 
+/**
+ * Convert minor units of a foreign currency into base grosze. Both sides are
+ * minor units (eurocents -> grosze), so the rate applies directly: 3000
+ * eurocents at 4.3 is 12900 grosze.
+ */
+export function foreignToBaseGrosze(amountMinor: number, rate: number): number {
+  return Math.round(amountMinor * rate);
+}
+
+/** Formats minor units in the given ISO currency, e.g. 3000 EUR -> "30,00 €". */
+export function formatForeign(amountMinor: number, code: string): string {
+  try {
+    return new Intl.NumberFormat("pl-PL", { style: "currency", currency: code }).format(
+      amountMinor / 100,
+    );
+  } catch {
+    // An unknown or malformed code must not take the screen down.
+    return `${(amountMinor / 100).toFixed(2).replace(".", ",")} ${code}`;
+  }
+}
+
+/**
+ * Parse a user-entered exchange rate. Accepts comma or dot, rejects anything
+ * non-positive — a zero or negative rate would silently zero out every
+ * converted expense.
+ */
+export function parseRate(input: string): number | null {
+  if (!input) return null;
+  const cleaned = input.trim().replace(/\s/g, "").replace(",", ".");
+  if (!/^\d+(\.\d{1,6})?$/.test(cleaned)) return null;
+  const value = Number(cleaned);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return value;
+}
+
 export type WeightedParticipant = { memberId: string; weight: number };
 
 /**

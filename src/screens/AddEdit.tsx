@@ -13,6 +13,8 @@ import { useToast } from "../context/ToastContext";
 import { copyText } from "../lib/share";
 import { createEntry, updateEntry } from "../lib/api";
 import {
+  foreignToBaseGrosze,
+  formatForeign,
   formatGrosze,
   groszeToInputValue,
   parsePlnToGrosze,
@@ -74,7 +76,7 @@ export function AddEdit() {
         : undefined;
   const [amountInput, setAmountInput] = useState(
     initialExpense
-      ? groszeToInputValue(initialExpense.amountGrosze)
+      ? groszeToInputValue(initialExpense.foreign?.amountMinor ?? initialExpense.amountGrosze)
       : prefillSettlement
         ? groszeToInputValue(prefillSettlement.amountGrosze)
         : "",
@@ -114,6 +116,11 @@ export function AddEdit() {
   });
   // Absent means 1 — "counts as one person" is the overwhelming default.
   const [weights, setWeights] = useState<Record<string, number>>({});
+
+  // Which currency the amount box is accepting right now. Reopening an entry
+  // that was entered in a foreign currency puts you back in that currency.
+  const groupCurrency = ledger?.settings?.currency ?? undefined;
+  const [inForeign, setInForeign] = useState(Boolean(initialExpense?.foreign));
   // Only meaningful when adding a fresh expense you paid: people who already
   // gave you their share get a settlement recorded alongside it, so the
   // expense stays in history but their part never shows up as owed.
@@ -142,7 +149,17 @@ export function AddEdit() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const totalGrosze = parsePlnToGrosze(amountInput);
+  // What was typed, in whichever currency the box is currently accepting.
+  const enteredMinor = parsePlnToGrosze(amountInput);
+  // The rate is read once here and carried onto the entry, so the expense
+  // records the rate it was actually converted at.
+  const activeRate = inForeign && groupCurrency ? groupCurrency.rate : null;
+  const totalGrosze =
+    enteredMinor === null
+      ? null
+      : activeRate !== null
+        ? foreignToBaseGrosze(enteredMinor, activeRate)
+        : enteredMinor;
 
   const toggleParticipant = (memberId: string) => {
     setParticipantIds((prev) =>
@@ -227,6 +244,17 @@ export function AddEdit() {
 
       if (entryType === "expense") {
         const shares = buildShares();
+        // Captured at write time so a later rate change cannot rewrite what
+        // this expense cost. Explicitly undefined when back in base currency,
+        // so editing a foreign entry into a PLN one clears the old record.
+        const foreign =
+          inForeign && groupCurrency && enteredMinor !== null
+            ? {
+                code: groupCurrency.code,
+                amountMinor: enteredMinor,
+                rate: groupCurrency.rate,
+              }
+            : undefined;
         if (editingEntry) {
           const changes: Partial<Entry> = {
             type: "expense",
@@ -235,6 +263,7 @@ export function AddEdit() {
             payerId,
             date,
             category,
+            foreign,
             shares,
           };
           applyLedger(await updateEntry(editingEntry.id, changes, whoAmI));
@@ -247,6 +276,7 @@ export function AddEdit() {
             payerId,
             date,
             category,
+            ...(foreign ? { foreign } : {}),
             shares,
             createdAt: new Date().toISOString(),
             createdBy: whoAmI,
@@ -398,8 +428,44 @@ export function AddEdit() {
                 placeholder="0,00"
                 className="num w-full max-w-[8ch] border-none bg-transparent text-center text-[2.5rem] font-bold leading-none tracking-tight text-ink outline-none placeholder:text-muted/40"
               />
-              <span className="text-xl font-semibold text-muted">zł</span>
+              <span className="text-xl font-semibold text-muted">
+                {inForeign && groupCurrency ? groupCurrency.code : "zł"}
+              </span>
             </div>
+
+            {/* Only offered when the group has set up a second currency, and
+                only for expenses — a settlement is a real PLN transfer. */}
+            {groupCurrency && entryType === "expense" && (
+              <div className="mt-3 flex justify-center gap-1.5">
+                {[
+                  { foreign: false, label: "zł" },
+                  { foreign: true, label: groupCurrency.code },
+                ].map((opt) => (
+                  <button
+                    key={opt.label}
+                    type="button"
+                    onClick={() => setInForeign(opt.foreign)}
+                    className={`press rounded-full px-3.5 py-1.5 text-[13px] font-medium ${
+                      inForeign === opt.foreign
+                        ? "bg-accent text-on-accent"
+                        : "bg-surface-2 text-muted"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {inForeign && groupCurrency && totalGrosze !== null && totalGrosze > 0 && (
+              <p className="num mt-3 text-center text-[13px] text-muted">
+                {formatForeign(enteredMinor ?? 0, groupCurrency.code)} = {formatGrosze(totalGrosze)}
+                <span className="text-muted/70">
+                  {" "}
+                  (kurs {String(groupCurrency.rate).replace(".", ",")})
+                </span>
+              </p>
+            )}
             {perPerson !== null && perPerson > 0 && entryType === "expense" && (
               <p className="mt-3 text-center text-[13px] text-muted">
                 po {formatGrosze(perPerson)} na osobę

@@ -9,6 +9,7 @@ import { useToast } from "../context/ToastContext";
 import { useTheme, type ThemePreference } from "../context/ThemeContext";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { PinSettings } from "../components/PinSettings";
+import { CurrencySettings } from "../components/CurrencySettings";
 import { useInstallPrompt } from "../lib/useInstallPrompt";
 import {
   addMember,
@@ -252,6 +253,20 @@ export function Settings() {
     }
   };
 
+  const handleSaveCurrency = async (code: string, rate: number) => {
+    if (await run(() => setSettings({ currency: { code, rate } }), "Nie udało się zapisać waluty")) {
+      showToast(`Druga waluta: ${code}`);
+    }
+  };
+
+  const handleClearCurrency = async () => {
+    // undefined would be dropped by the JSON round-trip and merged away
+    // server-side, so the server treats null as "remove this".
+    if (await run(() => setSettings({ currency: null }), "Nie udało się usunąć waluty")) {
+      showToast("Usunięto drugą walutę");
+    }
+  };
+
   const handleRenameGroup = async (name: string) => {
     if (await run(() => setSettings({ groupName: name }), "Nie udało się zmienić nazwy")) {
       showToast(name ? `Nazwa grupy: ${name}` : "Przywrócono domyślną nazwę");
@@ -389,6 +404,18 @@ export function Settings() {
               ]}
             />
           </section>
+
+          {!eventClosed && (
+            <section>
+              <h2 className={sectionTitle}>Druga waluta</h2>
+              <CurrencySettings
+                current={ledger.settings?.currency ?? undefined}
+                busy={busy}
+                onSave={handleSaveCurrency}
+                onClear={handleClearCurrency}
+              />
+            </section>
+          )}
 
           <section>
             <h2 className={sectionTitle}>Potwierdzanie przelewów</h2>
