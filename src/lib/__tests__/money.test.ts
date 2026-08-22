@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatGrosze, groszeToInputValue, parsePlnToGrosze, splitEqual } from "../money";
+import {
+  formatGrosze,
+  groszeToInputValue,
+  parsePlnToGrosze,
+  splitByWeights,
+  splitEqual,
+} from "../money";
 
 describe("parsePlnToGrosze", () => {
   it("accepts both comma and dot, because PL keyboards disagree", () => {
@@ -83,5 +89,62 @@ describe("splitEqual", () => {
 
   it("returns nothing when nobody is participating", () => {
     expect(splitEqual(1000, [], "a")).toEqual([]);
+  });
+});
+
+describe("splitByWeights", () => {
+  const w = (memberId: string, weight: number) => ({ memberId, weight });
+
+  it("gives a weight-2 participant twice the share", () => {
+    const shares = splitByWeights(9000, [w("a", 1), w("b", 2)], "a");
+    expect(shares.find((s) => s.memberId === "a")!.amountGrosze).toBe(3000);
+    expect(shares.find((s) => s.memberId === "b")!.amountGrosze).toBe(6000);
+  });
+
+  it("matches splitEqual when every weight is one", () => {
+    for (const total of [100, 101, 999, 1234]) {
+      const ids = ["a", "b", "c"];
+      const weighted = splitByWeights(
+        total,
+        ids.map((id) => w(id, 1)),
+        "b",
+      );
+      expect(weighted).toEqual(splitEqual(total, ids, "b"));
+    }
+  });
+
+  it("hands the leftover grosze to the payer first", () => {
+    // 100 over weights 1:1:1 leaves one grosz over after flooring.
+    const shares = splitByWeights(100, [w("a", 1), w("b", 1), w("c", 1)], "b");
+    expect(shares.find((s) => s.memberId === "b")!.amountGrosze).toBe(34);
+  });
+
+  it("drops non-positive weights instead of producing negative shares", () => {
+    const shares = splitByWeights(1000, [w("a", 1), w("b", 0), w("c", -3)], "a");
+    expect(shares).toHaveLength(1);
+    expect(shares[0]).toEqual({ memberId: "a", amountGrosze: 1000 });
+  });
+
+  it("returns nothing when no weight is usable", () => {
+    expect(splitByWeights(1000, [w("a", 0)], "a")).toEqual([]);
+    expect(splitByWeights(1000, [], "a")).toEqual([]);
+  });
+
+  it("always sums exactly to the total across weight combinations", () => {
+    const combos = [
+      [1, 2],
+      [1, 1, 3],
+      [2, 3, 5],
+      [1, 1, 1, 4],
+      [7],
+    ];
+    for (let total = 0; total <= 400; total++) {
+      for (const weights of combos) {
+        const parts = weights.map((weight, i) => w(`m${i}`, weight));
+        const shares = splitByWeights(total, parts, "m0");
+        const sum = shares.reduce((acc, s) => acc + s.amountGrosze, 0);
+        expect(sum).toBe(total);
+      }
+    }
   });
 });

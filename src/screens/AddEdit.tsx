@@ -12,14 +12,24 @@ import { useLedger } from "../context/LedgerContext";
 import { useToast } from "../context/ToastContext";
 import { copyText } from "../lib/share";
 import { createEntry, updateEntry } from "../lib/api";
-import { formatGrosze, groszeToInputValue, parsePlnToGrosze, splitEqual } from "../lib/money";
+import {
+  formatGrosze,
+  groszeToInputValue,
+  parsePlnToGrosze,
+  splitByWeights,
+  splitEqual,
+} from "../lib/money";
 import { formatPhoneDisplay, phoneDigitsOnly } from "../lib/phone";
+import { plural } from "../lib/plural";
 import { CATEGORIES } from "../lib/categories";
 import { Check } from "../components/Check";
 import type { Entry, ExpenseCategory, Share } from "../../shared/types";
 import type { SuggestedTransfer } from "../lib/balances";
 
 type EntryType = "expense" | "settlement";
+
+/** Equal shares, per-person multipliers, or amounts typed in by hand. */
+type SplitMode = "equal" | "weights" | "exact";
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -86,15 +96,23 @@ export function AddEdit() {
       : selectableMembers.filter((m) => !m.hidden).map((m) => m.id),
   );
   // An entry whose shares are not what splitEqual would produce was split by
-  // hand. Defaulting this to false silently re-equalised such an expense the
+  // hand. Defaulting this to "equal" silently re-equalised such an expense the
   // moment it was opened for editing (or duplicated).
-  const [exactSplit, setExactSplit] = useState(() => {
-    if (!initialExpense) return false;
+  //
+  // Weights are not stored on the entry — only the resulting amounts are — so a
+  // weighted expense reopens as "exact". That keeps every grosz exactly as
+  // saved, which matters more than recovering the multipliers.
+  const [splitMode, setSplitMode] = useState<SplitMode>(() => {
+    if (!initialExpense) return "equal";
     const ids = initialExpense.shares.map((s) => s.memberId);
     const equal = splitEqual(initialExpense.amountGrosze, ids, initialExpense.payerId);
     const byId = new Map(equal.map((s) => [s.memberId, s.amountGrosze]));
-    return initialExpense.shares.some((s) => byId.get(s.memberId) !== s.amountGrosze);
+    return initialExpense.shares.some((s) => byId.get(s.memberId) !== s.amountGrosze)
+      ? "exact"
+      : "equal";
   });
+  // Absent means 1 — "counts as one person" is the overwhelming default.
+  const [weights, setWeights] = useState<Record<string, number>>({});
   // Only meaningful when adding a fresh expense you paid: people who already
   // gave you their share get a settlement recorded alongside it, so the
   // expense stays in history but their part never shows up as owed.
@@ -142,9 +160,14 @@ export function AddEdit() {
   const exactRemaining = (totalGrosze ?? 0) - exactSum;
 
   const perPerson =
-    totalGrosze !== null && participantIds.length > 0 && !exactSplit
+    totalGrosze !== null && participantIds.length > 0 && splitMode === "equal"
       ? Math.floor(totalGrosze / participantIds.length)
       : null;
+
+  const weightOf = (memberId: string) => weights[memberId] ?? 1;
+  const setWeight = (memberId: string, weight: number) =>
+    setWeights((prev) => ({ ...prev, [memberId]: Math.max(1, Math.min(20, weight)) }));
+  const totalWeight = participantIds.reduce((sum, mid) => sum + weightOf(mid), 0);
 
   const showAlreadyPaid =
     entryType === "expense" && !editingEntry && whoAmI !== "" && payerId === whoAmI;
@@ -165,21 +188,34 @@ export function AddEdit() {
     description.trim().length > 0 &&
     payerId &&
     participantIds.length > 0 &&
-    (!exactSplit || exactRemaining === 0);
+    (splitMode !== "exact" || exactRemaining === 0) &&
+    (splitMode !== "weights" || totalWeight > 0);
 
   const canSubmitSettlement =
     totalGrosze !== null && totalGrosze > 0 && fromId && toId && fromId !== toId;
 
   const buildShares = (): Share[] => {
     if (totalGrosze === null) return [];
-    if (exactSplit) {
+    if (splitMode === "exact") {
       return participantIds.map((memberId) => ({
         memberId,
         amountGrosze: parsePlnToGrosze(exactAmounts[memberId] ?? "0") ?? 0,
       }));
     }
+    if (splitMode === "weights") {
+      return splitByWeights(
+        totalGrosze,
+        participantIds.map((memberId) => ({ memberId, weight: weightOf(memberId) })),
+        payerId,
+      );
+    }
     return splitEqual(totalGrosze, participantIds, payerId);
   };
+
+  // One source of truth for "what does each person owe right now", so the
+  // weights preview and the already-paid list can never disagree with what
+  // actually gets saved.
+  const shareByMember = new Map(buildShares().map((s) => [s.memberId, s.amountGrosze]));
 
   const handleSubmit = async () => {
     if (!whoAmI || !ledger) return;
@@ -438,21 +474,69 @@ export function AddEdit() {
                 )}
               </div>
 
-              <label className="press card flex min-h-12 cursor-pointer items-center gap-3 rounded-2xl px-4 py-3">
-                <input
-                  type="checkbox"
-                  checked={exactSplit}
-                  onChange={(e) => setExactSplit(e.target.checked)}
-                  className="sr-only"
-                />
-                <Check checked={exactSplit} />
-                <span className="flex-1 text-[15px] text-ink">Podziel dokładnie</span>
-                <span className="text-[13px] text-muted">
-                  {exactSplit ? "kwoty ręcznie" : "po równo"}
-                </span>
-              </label>
+              <SegmentedControl
+                value={splitMode}
+                onChange={setSplitMode}
+                options={[
+                  { value: "equal", label: "Po równo" },
+                  { value: "weights", label: "Wagi" },
+                  { value: "exact", label: "Kwoty" },
+                ]}
+              />
 
-              {exactSplit && (
+              {splitMode === "weights" && (
+                <div className="card space-y-1 rounded-3xl p-3">
+                  {participantIds.map((mid) => {
+                    const member = allMembers.find((m) => m.id === mid);
+                    const weight = weightOf(mid);
+                    const share = shareByMember.get(mid);
+                    return (
+                      <div key={mid} className="flex items-center gap-3 px-1 py-1">
+                        <Avatar name={member?.name ?? "?"} seed={mid} size="sm" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[15px] text-ink">
+                            {member?.name}
+                          </span>
+                          {share !== undefined && (
+                            <span className="num block text-[13px] text-muted">
+                              {formatGrosze(share)}
+                            </span>
+                          )}
+                        </span>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button
+                            type="button"
+                            aria-label={`Zmniejsz wagę ${member?.name}`}
+                            disabled={weight <= 1}
+                            onClick={() => setWeight(mid, weight - 1)}
+                            className="press flex h-9 w-9 items-center justify-center rounded-full bg-surface-2 text-ink disabled:opacity-30"
+                          >
+                            &minus;
+                          </button>
+                          <span className="num w-8 text-center text-[15px] font-semibold text-ink">
+                            &times;{weight}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={`Zwiększ wagę ${member?.name}`}
+                            onClick={() => setWeight(mid, weight + 1)}
+                            className="press flex h-9 w-9 items-center justify-center rounded-full bg-surface-2 text-ink"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <p className="mt-1 px-2 pt-1 text-[13px] leading-relaxed text-muted">
+                    Waga 2 znaczy &bdquo;liczy się za dwie osoby&rdquo; &mdash; np. ktoś przyszedł
+                    z osobą towarzyszącą. Razem: {totalWeight}{" "}
+                    {plural(totalWeight, "udział", "udziały", "udziałów")}.
+                  </p>
+                </div>
+              )}
+
+              {splitMode === "exact" && (
                 <div className="card space-y-1 rounded-3xl p-3">
                   {participantIds.map((mid) => {
                     const member = allMembers.find((m) => m.id === mid);
@@ -505,9 +589,7 @@ export function AddEdit() {
                   <ul className="card divide-y divide-line overflow-hidden rounded-2xl">
                     {owingParticipants.map((mid) => {
                       const member = allMembers.find((m) => m.id === mid);
-                      const shareAmount = exactSplit
-                        ? (parsePlnToGrosze(exactAmounts[mid] ?? "0") ?? 0)
-                        : perPerson;
+                      const shareAmount = shareByMember.get(mid) ?? null;
                       const paid = alreadyPaidIds.includes(mid);
                       return (
                         <li key={mid}>

@@ -20,17 +20,9 @@ import { countableEntries, groupName, pendingConfirmations, visibleEntries } fro
 import { confirmSettlement, rejectSettlement } from "../lib/api";
 import { buildSummaryText, shareText } from "../lib/share";
 import { formatGrosze } from "../lib/money";
+import { plural } from "../lib/plural";
 import { buildReminderText } from "../lib/reminders";
 import type { Ledger } from "../../shared/types";
-
-/** Polish plural form for a count (1 / 2-4 / 5+). */
-function plural(n: number, one: string, few: string, many: string) {
-  if (n === 1) return one;
-  const rem10 = n % 10;
-  const rem100 = n % 100;
-  if (rem10 >= 2 && rem10 <= 4 && !(rem100 >= 12 && rem100 <= 14)) return few;
-  return many;
-}
 
 export function Home() {
   const { ledger, refetch, refreshing, isOffline, syncWarning, applyLedger } = useLedger();
