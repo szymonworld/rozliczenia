@@ -7,6 +7,7 @@ import { useIdentity } from "../context/IdentityContext";
 import { useLedger } from "../context/LedgerContext";
 import { computeStats, filterByPeriod, type Period } from "../lib/stats";
 import { formatGrosze } from "../lib/money";
+import { categoryOf } from "../lib/categories";
 
 export function Stats() {
   const { ledger } = useLedger();
@@ -75,6 +76,48 @@ export function Stats() {
               )}
             </div>
           </section>
+
+          {stats.perCategory.length > 0 && (
+            <section>
+              <h2 className="mb-2 px-1 text-[13px] font-semibold uppercase tracking-[0.06em] text-muted">
+                Na co poszło
+              </h2>
+              <ul className="card space-y-3 rounded-3xl p-4">
+                {stats.perCategory.map((c) => {
+                  const meta = categoryOf(c.category);
+                  // Share of total spend, not of the largest bucket — the
+                  // question here is "what proportion went on food", so the
+                  // percentages should add up to 100.
+                  const pct = stats.totalGrosze
+                    ? Math.round((c.amountGrosze / stats.totalGrosze) * 100)
+                    : 0;
+                  return (
+                    <li key={c.category}>
+                      <div className="mb-1.5 flex items-center gap-2.5">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted">
+                          <Icon name={meta.icon} className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="flex-1 truncate text-[14px] text-ink">{meta.label}</span>
+                        <span className="num text-[13px] text-muted">{pct}%</span>
+                        <span className="num w-20 text-right text-[14px] font-semibold text-ink">
+                          {formatGrosze(c.amountGrosze)}
+                        </span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-surface-2">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${pct}%`,
+                            background: "linear-gradient(90deg, var(--accent), var(--accent-2))",
+                          }}
+                        />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
 
           <section>
             <h2 className="mb-2 px-1 text-[13px] font-semibold uppercase tracking-[0.06em] text-muted">

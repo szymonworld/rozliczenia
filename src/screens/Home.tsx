@@ -20,6 +20,7 @@ import { countableEntries, groupName, pendingConfirmations, visibleEntries } fro
 import { confirmSettlement, rejectSettlement } from "../lib/api";
 import { buildSummaryText, shareText } from "../lib/share";
 import { formatGrosze } from "../lib/money";
+import { buildReminderText } from "../lib/reminders";
 import type { Ledger } from "../../shared/types";
 
 /** Polish plural form for a count (1 / 2-4 / 5+). */
@@ -94,9 +95,11 @@ export function Home() {
     if (!ledger) return;
     const debtor = ledger.members.find((m) => m.id === t.fromId);
     const me = ledger.members.find((m) => m.id === t.toId);
-    const text =
-      `Cześć ${debtor?.name}! Przypominam o ${formatGrosze(t.amountGrosze)} ` +
-      `za wspólne wydatki. Szczegóły w Rozliczeniach. — ${me?.name}`;
+    const text = buildReminderText(
+      debtor?.name ?? "Cześć",
+      formatGrosze(t.amountGrosze),
+      me?.name ?? "",
+    );
     const result = await shareText("Przypomnienie", text);
     if (result === "copied") showToast("Przypomnienie skopiowane do schowka");
     else if (result === "failed") showToast("Nie udało się udostępnić przypomnienia");

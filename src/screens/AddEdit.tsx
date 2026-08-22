@@ -14,7 +14,9 @@ import { copyText } from "../lib/share";
 import { createEntry, updateEntry } from "../lib/api";
 import { formatGrosze, groszeToInputValue, parsePlnToGrosze, splitEqual } from "../lib/money";
 import { formatPhoneDisplay, phoneDigitsOnly } from "../lib/phone";
-import type { Entry, Share } from "../../shared/types";
+import { CATEGORIES } from "../lib/categories";
+import { Check } from "../components/Check";
+import type { Entry, ExpenseCategory, Share } from "../../shared/types";
 import type { SuggestedTransfer } from "../lib/balances";
 
 type EntryType = "expense" | "settlement";
@@ -67,6 +69,7 @@ export function AddEdit() {
         : "",
   );
   const [description, setDescription] = useState(initialExpense?.description ?? "");
+  const [category, setCategory] = useState<ExpenseCategory>(initialExpense?.category ?? "other");
   const [payerId, setPayerId] = useState(initialExpense?.payerId ?? whoAmI ?? "");
   // Deliberately not carried over from a duplicate.
   const [date, setDate] = useState(editingEntry?.date ?? todayIso());
@@ -194,6 +197,7 @@ export function AddEdit() {
             amountGrosze: totalGrosze,
             payerId,
             date,
+            category,
             shares,
           };
           applyLedger(await updateEntry(editingEntry.id, changes, whoAmI));
@@ -205,6 +209,7 @@ export function AddEdit() {
             amountGrosze: totalGrosze,
             payerId,
             date,
+            category,
             shares,
             createdAt: new Date().toISOString(),
             createdBy: whoAmI,
@@ -352,6 +357,31 @@ export function AddEdit() {
               </div>
 
               <div>
+                <span className={labelClass}>Kategoria</span>
+                <div className="flex flex-wrap gap-2">
+                  {CATEGORIES.map((c) => {
+                    const active = category === c.id;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setCategory(c.id)}
+                        className={`press flex min-h-11 items-center gap-2 rounded-full border px-3.5 text-sm font-medium ${
+                          active
+                            ? "border-transparent bg-accent text-on-accent shadow-sm"
+                            : "border-line bg-surface text-muted"
+                        }`}
+                      >
+                        <Icon name={c.icon} className="h-4 w-4" />
+                        {c.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
                 <label htmlFor="date" className={labelClass}>
                   Data
                 </label>
@@ -413,8 +443,9 @@ export function AddEdit() {
                   type="checkbox"
                   checked={exactSplit}
                   onChange={(e) => setExactSplit(e.target.checked)}
-                  className="h-5 w-5 rounded"
+                  className="sr-only"
                 />
+                <Check checked={exactSplit} />
                 <span className="flex-1 text-[15px] text-ink">Podziel dokładnie</span>
                 <span className="text-[13px] text-muted">
                   {exactSplit ? "kwoty ręcznie" : "po równo"}
@@ -492,13 +523,7 @@ export function AddEdit() {
                                 {formatGrosze(shareAmount)}
                               </span>
                             )}
-                            <span
-                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-                                paid ? "bg-pos text-on-accent" : "border border-line"
-                              }`}
-                            >
-                              {paid && <Icon name="check" className="h-3.5 w-3.5" strokeWidth={3} />}
-                            </span>
+                            <Check checked={paid} />
                           </button>
                         </li>
                       );

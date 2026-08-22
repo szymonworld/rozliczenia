@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import type { Entry, Member } from "../../shared/types";
 import { formatGrosze } from "../lib/money";
 import { settlementStatus } from "../lib/ledgerView";
+import { categoryOf } from "../lib/categories";
 import { Avatar } from "./Avatar";
 import { Icon } from "./Icon";
 
@@ -64,7 +65,15 @@ export function EntryRow({
           className="flex min-w-0 flex-1 items-center gap-3 py-1 text-left"
         >
           {isExpense ? (
-            <Avatar name={nameOf(members, entry.payerId)} seed={entry.payerId} size="md" />
+            <span className="relative shrink-0">
+              <Avatar name={nameOf(members, entry.payerId)} seed={entry.payerId} size="md" />
+              <span
+                title={categoryOf(entry.category).label}
+                className="absolute -bottom-0.5 -right-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full border-2 border-surface bg-surface-2 text-muted"
+              >
+                <Icon name={categoryOf(entry.category).icon} className="h-2.5 w-2.5" />
+              </span>
+            </span>
           ) : (
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
               <Icon name="transfer" className="h-5 w-5" />

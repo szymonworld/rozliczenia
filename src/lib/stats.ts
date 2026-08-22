@@ -1,5 +1,5 @@
 // Spending statistics derived from the ledger. Integer grosze throughout.
-import type { Entry, Member } from "../../shared/types";
+import type { Entry, ExpenseCategory, Member } from "../../shared/types";
 
 export type MemberStats = {
   memberId: string;
@@ -11,11 +11,19 @@ export type MemberStats = {
   entryCount: number;
 };
 
+export type CategoryStats = {
+  category: ExpenseCategory;
+  amountGrosze: number;
+  entryCount: number;
+};
+
 export type LedgerStats = {
   totalGrosze: number;
   expenseCount: number;
   settlementCount: number;
   perMember: MemberStats[];
+  /** Spend per category, largest first. Only categories actually used appear. */
+  perCategory: CategoryStats[];
   /** Largest single expense, if any. */
   biggest: { description: string; amountGrosze: number; date: string } | null;
 };
@@ -48,6 +56,7 @@ export function computeStats(members: Member[], entries: Entry[]): LedgerStats {
   let expenseCount = 0;
   let settlementCount = 0;
   let biggest: LedgerStats["biggest"] = null;
+  const perCategory = new Map<ExpenseCategory, CategoryStats>();
 
   for (const entry of entries) {
     if (entry.deletedAt) continue;
@@ -60,6 +69,14 @@ export function computeStats(members: Member[], entries: Entry[]): LedgerStats {
     expenseCount++;
     totalGrosze += entry.amountGrosze;
     ensure(entry.payerId).paidGrosze += entry.amountGrosze;
+
+    // Entries predating categories fall into "other" rather than vanishing
+    // from the breakdown.
+    const category = entry.category ?? "other";
+    const bucket = perCategory.get(category) ?? { category, amountGrosze: 0, entryCount: 0 };
+    bucket.amountGrosze += entry.amountGrosze;
+    bucket.entryCount++;
+    perCategory.set(category, bucket);
 
     for (const share of entry.shares) {
       const s = ensure(share.memberId);
@@ -81,6 +98,7 @@ export function computeStats(members: Member[], entries: Entry[]): LedgerStats {
     expenseCount,
     settlementCount,
     perMember: [...perMember.values()].sort((a, b) => b.shareGrosze - a.shareGrosze),
+    perCategory: [...perCategory.values()].sort((a, b) => b.amountGrosze - a.amountGrosze),
     biggest,
   };
 }

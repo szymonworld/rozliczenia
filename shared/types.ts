@@ -20,6 +20,9 @@ export type Share = {
   amountGrosze: number;
 };
 
+/** What an expense was for. Closed list so totals stay groupable. */
+export type ExpenseCategory = "food" | "transport" | "stay" | "fun" | "shop" | "other";
+
 export type ExpenseEntry = {
   id: string;
   type: "expense";
@@ -27,6 +30,8 @@ export type ExpenseEntry = {
   amountGrosze: number;
   payerId: string;
   date: string; // ISO date (yyyy-mm-dd)
+  /** Absent on entries created before categories existed — treat as "other". */
+  category?: ExpenseCategory;
   shares: Share[];
   createdAt: string;
   createdBy: string;
