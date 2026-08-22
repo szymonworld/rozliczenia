@@ -90,7 +90,7 @@ export function History() {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col bg-bg">
+    <div className="app-shell bg-bg">
       <Header
         title="Historia"
         back
@@ -110,7 +110,7 @@ export function History() {
       <PullToRefresh onRefresh={refetch}>
         <div
           style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom))" }}
-          className="mx-auto w-full max-w-md space-y-5 px-4 pt-4"
+          className="stagger mx-auto w-full max-w-md space-y-5 px-4 pt-4"
         >
           {error && (
             <Banner tone="neg" icon="alert">
@@ -158,7 +158,7 @@ export function History() {
                 <h2 className="mb-2 px-1 text-[13px] font-semibold uppercase tracking-[0.06em] text-muted">
                   {dayLabel(group.date)}
                 </h2>
-                <ul className="card divide-y divide-line overflow-hidden rounded-3xl">
+                <ul className="stagger-rows card divide-y divide-line overflow-hidden rounded-3xl">
                   {group.entries.map((entry) => (
                     <EntryRow
                       key={entry.id}

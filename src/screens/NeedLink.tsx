@@ -20,9 +20,9 @@ export function NeedLink() {
   return (
     <div
       style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}
-      className="flex min-h-dvh flex-col justify-center bg-bg px-6 py-10"
+      className="app-scroll flex min-h-full flex-col justify-center bg-bg px-6 py-10"
     >
-      <div className="mx-auto w-full max-w-sm text-center">
+      <div className="anim-rise mx-auto w-full max-w-sm text-center">
         <span
           className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl text-on-accent"
           style={{

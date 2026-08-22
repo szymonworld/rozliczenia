@@ -1,4 +1,10 @@
-import type { Entry, EntryWriteRequest, Ledger, LedgerSettings } from "../../shared/types";
+import type {
+  Entry,
+  EntryWriteRequest,
+  GroupCreateResponse,
+  Ledger,
+  LedgerSettings,
+} from "../../shared/types";
 
 const CACHE_KEY = "rozliczenia:ledger-cache";
 const SLUG_KEY = "rozliczenia:group-slug";
@@ -23,6 +29,72 @@ export function setGroupSlug(slug: string) {
   }
 }
 const PENDING_KEY = "rozliczenia:pending-entries";
+const UNLOCK_PREFIX = "rozliczenia:unlock:";
+
+/**
+ * The unlock token proving this device knew the event's PIN. Kept per slug so
+ * switching between events does not mix them up, and sent as a header so it
+ * never appears in a URL.
+ */
+function readUnlockToken(slug: string): string | null {
+  try {
+    return localStorage.getItem(UNLOCK_PREFIX + slug);
+  } catch {
+    return null;
+  }
+}
+
+function unlockHeaders(): Record<string, string> {
+  const slug = getGroupSlug();
+  const token = slug ? readUnlockToken(slug) : null;
+  return token ? { "X-Group-Unlock": token } : {};
+}
+
+/** Exchanges the event's PIN for an unlock token and remembers it. */
+export async function unlockGroup(pin: string): Promise<void> {
+  const slug = getGroupSlug();
+  if (!slug) throw new ApiError("Brak linku do grupy");
+
+  const res = await fetch("/api/unlock", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ slug, pin }),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    throw new ApiError(detail?.error ?? "Nie udało się odblokować wydarzenia");
+  }
+  const { token } = (await res.json()) as { token: string };
+  try {
+    localStorage.setItem(UNLOCK_PREFIX + slug, token);
+  } catch {
+    // Without storage the unlock lasts only for this page load.
+  }
+}
+
+export function forgetUnlockToken() {
+  const slug = getGroupSlug();
+  if (!slug) return;
+  try {
+    localStorage.removeItem(UNLOCK_PREFIX + slug);
+  } catch {
+    // ignore
+  }
+}
+
+export async function setPin(pin: string, currentPin?: string): Promise<Ledger> {
+  const ledger = await postEntry({ action: "setPin", pin, currentPin });
+  // The old token was signed with the previous secret, so re-unlock straight
+  // away rather than locking this device out of the event it just secured.
+  await unlockGroup(pin);
+  return ledger;
+}
+
+export async function clearPin(currentPin: string): Promise<Ledger> {
+  const ledger = await postEntry({ action: "clearPin", currentPin });
+  forgetUnlockToken();
+  return ledger;
+}
 
 export function readCachedLedger(): Ledger | null {
   try {
@@ -99,14 +171,46 @@ export function reconcilePending(ledger: Ledger): string[] {
 export class ApiError extends Error {}
 /** The slug this device holds is not valid for any group. */
 export class GroupNotFoundError extends ApiError {}
+/** The event has a PIN and this device has not proved it knows it. */
+export class PinRequiredError extends ApiError {}
+
+/**
+ * Creates a brand new event on its own secret link. Deliberately does not
+ * touch this device's stored slug — the caller decides whether to switch over
+ * once the link has been handed out.
+ */
+export async function createGroup(
+  name: string,
+  memberNames: string[],
+): Promise<GroupCreateResponse> {
+  if (!navigator.onLine) {
+    throw new ApiError("Brak połączenia z internetem — spróbuj ponownie, gdy będziesz online.");
+  }
+  const res = await fetch("/api/group", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, memberNames }),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    throw new ApiError(detail?.error ?? "Nie udało się utworzyć wydarzenia");
+  }
+  return (await res.json()) as GroupCreateResponse;
+}
 
 export async function fetchLedger(): Promise<Ledger> {
   const res = await fetch(`/api/ledger?slug=${encodeURIComponent(getGroupSlug() ?? "")}`, {
     cache: "no-store",
+    headers: unlockHeaders(),
   });
   if (res.status === 404) {
     clearCachedLedger();
     throw new GroupNotFoundError("Nie znaleziono grupy");
+  }
+  if (res.status === 401) {
+    // Nothing readable may sit in the cache for a locked event.
+    clearCachedLedger();
+    throw new PinRequiredError("To wydarzenie jest zabezpieczone PIN-em");
   }
   if (!res.ok) throw new ApiError("Nie udało się pobrać danych z serwera");
   const ledger = (await res.json()) as Ledger;
@@ -122,7 +226,7 @@ async function postEntry(body: EntryWriteRequest): Promise<Ledger> {
   try {
     res = await fetch("/api/entry", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...unlockHeaders() },
       body: JSON.stringify({ ...body, slug: getGroupSlug() ?? "" }),
     });
   } catch {
@@ -130,6 +234,9 @@ async function postEntry(body: EntryWriteRequest): Promise<Ledger> {
   }
   if (!res.ok) {
     const data = await res.json().catch(() => null);
+    if (res.status === 401 && data?.pinRequired) {
+      throw new PinRequiredError(data.error ?? "To wydarzenie jest zabezpieczone PIN-em");
+    }
     throw new ApiError(data?.error || "Nie udało się zapisać danych");
   }
   const ledger = (await res.json()) as Ledger;
@@ -160,6 +267,28 @@ export async function restoreEntry(id: string): Promise<Ledger> {
 
 export async function addMember(name: string): Promise<Ledger> {
   return postEntry({ action: "addMember", name });
+}
+
+/**
+ * Soft-deletes the current event: the ledger stays in storage, but the link
+ * stops working. Only the admin console can undo it.
+ */
+export async function archiveGroup(memberId?: string): Promise<Ledger> {
+  return postEntry({ action: "archiveGroup", memberId });
+}
+
+/** Forgets the group this device belongs to, so the app falls back to NeedLink. */
+export function clearGroupSlug() {
+  try {
+    localStorage.removeItem(SLUG_KEY);
+  } catch {
+    // Nothing to clear if storage is unavailable.
+  }
+}
+
+/** Only possible for someone who appears in no entry at all. */
+export async function removeMember(memberId: string): Promise<Ledger> {
+  return postEntry({ action: "removeMember", memberId });
 }
 
 export async function setMemberHidden(memberId: string, hidden: boolean): Promise<Ledger> {

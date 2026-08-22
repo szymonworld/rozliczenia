@@ -44,12 +44,12 @@ export function PaySheet({
       <button
         aria-label="Zamknij"
         onClick={onClose}
-        className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
+        className="anim-fade absolute inset-0 bg-black/50 backdrop-blur-[2px]"
       />
 
       <div
         style={{ paddingBottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}
-        className="relative z-10 max-h-[90dvh] overflow-y-auto rounded-t-3xl bg-surface px-5 pt-3"
+        className="anim-sheet relative z-10 max-h-[90dvh] overflow-y-auto overscroll-contain rounded-t-3xl bg-surface px-5 pt-3"
       >
         <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-line" />
 

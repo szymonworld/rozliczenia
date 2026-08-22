@@ -1,11 +1,12 @@
+import { existsSync } from "node:fs";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 /**
- * Dev-only middleware that serves /api/ledger and /api/entry by loading the
- * real Vercel Function handlers through Vite's module graph. This means
+ * Dev-only middleware that serves /api/* by loading the matching Vercel
+ * Function handler through Vite's module graph. This means
  * `npm run dev` works standalone — no `vercel dev` required. In production
  * on Vercel, the files under api/ are deployed as Vercel Functions directly
  * and this plugin plays no part.
@@ -16,9 +17,12 @@ function localApiPlugin(): Plugin {
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const url = (req.url ?? "").split("?")[0];
-        const modulePath =
-          url === "/api/ledger" ? "/api/ledger.ts" : url === "/api/entry" ? "/api/entry.ts" : null;
-        if (!modulePath) return next();
+        // One handler file per endpoint, named after the path. The character
+        // class keeps a crafted URL from reaching outside api/.
+        const name = url.startsWith("/api/") ? url.slice("/api/".length) : "";
+        if (!name || !/^[a-z][a-z0-9-]*$/.test(name)) return next();
+        const modulePath = `/api/${name}.ts`;
+        if (!existsSync(`.${modulePath}`)) return next();
 
         try {
           // Vercel populates req.query; plain Node does not, so shim it here

@@ -33,7 +33,7 @@ export function ConfirmationCard({
         </h2>
       </div>
 
-      <ul className="divide-y divide-line">
+      <ul className="stagger-rows divide-y divide-line">
         {settlements.map((s) => (
           <li key={s.id} className="px-4 py-3">
             <div className="flex items-center gap-3">

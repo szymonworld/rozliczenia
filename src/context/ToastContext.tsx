@@ -53,7 +53,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           style={{ bottom: "calc(6rem + env(safe-area-inset-bottom))" }}
           className="pointer-events-none fixed inset-x-0 z-50 flex justify-center px-4"
         >
-          <div className="pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-2xl bg-ink px-4 py-3 shadow-lg">
+          <div className="anim-rise pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-2xl bg-ink px-4 py-3 shadow-lg">
             <span className="flex-1 text-[14px] font-medium text-bg">{toast.message}</span>
             {toast.action && (
               <button

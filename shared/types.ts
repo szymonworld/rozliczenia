@@ -63,6 +63,12 @@ export type Entry = ExpenseEntry | SettlementEntry;
 
 export type LedgerSettings = {
   /**
+   * What this group is called — shown as the app's title. Free-form, so
+   * "Kawalerski Sławka" and "Mieszkanie 4B" are equally valid. Empty or
+   * missing falls back to the default title.
+   */
+  groupName?: string;
+  /**
    * When true, a settlement only counts towards balances once the recipient
    * confirms it. When false (default) the money is assumed to have moved and
    * confirmation is just an acknowledgement.
@@ -75,6 +81,94 @@ export type Ledger = {
   members: Member[];
   entries: Entry[];
   settings?: LedgerSettings;
+  /** When this event was created. Absent on the original group. */
+  createdAt?: string;
+  /** Stamped on every write — this is what decides when an event goes stale. */
+  updatedAt?: string;
+  /**
+   * Soft delete. The ledger stays in storage untouched; it just stops
+   * answering to its link. Only the admin console can bring it back.
+   */
+  archivedAt?: string;
+  archivedBy?: string;
+  /**
+   * Optional second factor on top of the secret link. Server-side only — the
+   * API strips this before a ledger ever reaches a browser.
+   */
+  pin?: PinConfig;
+  /** What the client sees instead: whether a PIN is set, never the material. */
+  pinEnabled?: boolean;
+};
+
+/** Stretched PIN material. Never leaves the server. */
+export type PinConfig = {
+  salt: string;
+  hash: string;
+  /** Signs this event's unlock tokens; rotated whenever the PIN changes. */
+  secret: string;
+};
+
+/** Bounds the UI and the server agree on for an event PIN. */
+export const PIN_MIN_LENGTH = 4;
+export const PIN_MAX_LENGTH = 12;
+
+export type UnlockRequest = { slug: string; pin: string };
+export type UnlockResponse = { token: string };
+
+/** Body of POST /api/group — spins up a fresh event on its own secret link. */
+export type GroupCreateRequest = {
+  name: string;
+  memberNames: string[];
+};
+
+export type GroupCreateResponse = {
+  slug: string;
+  ledger: Ledger;
+};
+
+/**
+ * Staleness thresholds. Nothing is ever removed on a timer — an idle event is
+ * only *labelled*, so a person can decide what to do with it.
+ */
+export const STALE_DAYS = 30;
+export const VERY_STALE_DAYS = 60;
+
+export type Staleness = "fresh" | "stale" | "very-stale";
+
+/** Which staleness bucket an idle count falls into. */
+export function stalenessOf(idleDays: number | null): Staleness {
+  if (idleDays === null) return "fresh";
+  if (idleDays >= VERY_STALE_DAYS) return "very-stale";
+  if (idleDays >= STALE_DAYS) return "stale";
+  return "fresh";
+}
+
+/** One row of the admin console's event list. */
+export type AdminGroupSummary = {
+  slug: string;
+  name: string;
+  memberCount: number;
+  entryCount: number;
+  createdAt?: string;
+  updatedAt?: string;
+  archivedAt?: string;
+  archivedBy?: string;
+  idleDays: number | null;
+  staleness: Staleness;
+  pinEnabled: boolean;
+  /** The original group: listable and PIN-resettable, but never removable. */
+  isPrimary: boolean;
+};
+
+export type AdminListResponse = {
+  staleDays: number;
+  veryStaleDays: number;
+  groups: AdminGroupSummary[];
+};
+
+export type AdminActionRequest = {
+  action: "archive" | "restore" | "purge" | "clear-pin";
+  slug: string;
 };
 
 // Request body accepted by POST /api/entry
@@ -84,6 +178,10 @@ export type EntryWriteRequest =
   | { action: "delete"; id: string }
   | { action: "restore"; id: string }
   | { action: "addMember"; name: string }
+  | { action: "removeMember"; memberId: string }
+  | { action: "archiveGroup"; memberId?: string }
+  | { action: "setPin"; pin: string; currentPin?: string }
+  | { action: "clearPin"; currentPin: string }
   | { action: "setMemberHidden"; memberId: string; hidden: boolean }
   | { action: "setMemberPayment"; memberId: string; payment: PaymentDetails }
   | { action: "renameMember"; memberId: string; name: string }

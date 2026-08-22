@@ -1,7 +1,15 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getLedger, saveLedger } from "./_lib/storage.js";
+import { getLedger, LedgerNotFoundError, saveLedger } from "./_lib/storage.js";
 import { resolveSlug } from "./_lib/access.js";
+import {
+  isValidPinFormat,
+  makePinConfig,
+  pinMatches,
+  unlockTokenValid,
+  withoutPinSecrets,
+} from "./_lib/pin.js";
 import type { Entry, EntryWriteRequest, Ledger } from "../shared/types.js";
+import { GROUP_SLUG, PIN_MAX_LENGTH, PIN_MIN_LENGTH } from "../shared/types.js";
 
 function validateEntry(entry: Entry): string | null {
   if (entry.type === "expense") {
@@ -21,6 +29,15 @@ function validateEntry(entry: Entry): string | null {
     return "Nieznany typ wpisu";
   }
   return null;
+}
+
+/** Every entry — deleted ones included — that names this member. */
+function memberReferences(ledger: Ledger, memberId: string): number {
+  return ledger.entries.filter((e) =>
+    e.type === "expense"
+      ? e.payerId === memberId || e.shares.some((sh) => sh.memberId === memberId)
+      : e.fromId === memberId || e.toId === memberId,
+  ).length;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -50,6 +67,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const ledger = await getLedger(slug);
+    // An archived event is read-only-and-invisible until restored, so nothing
+    // may be written into it — not even another archive.
+    if (ledger.archivedAt) {
+      res.status(404).json({ error: "To wydarzenie zostało usunięte" });
+      return;
+    }
+    if (ledger.pin) {
+      const token = req.headers["x-group-unlock"];
+      const supplied = Array.isArray(token) ? token[0] : token;
+      if (!unlockTokenValid(supplied, slug, ledger.pin)) {
+        res.status(401).json({ error: "To wydarzenie jest zabezpieczone PIN-em", pinRequired: true });
+        return;
+      }
+    }
     let updated: Ledger;
 
     switch (body.action) {
@@ -134,6 +165,77 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         updated = { ...ledger, members: [...ledger.members, { id: uniqueId, name }] };
         break;
       }
+      case "setPin": {
+        // Changing an existing PIN requires the old one, so a device that is
+        // merely unlocked cannot silently lock everyone else out.
+        if (ledger.pin && !pinMatches(body.currentPin, ledger.pin)) {
+          res.status(401).json({ error: "Nieprawidłowy obecny PIN" });
+          return;
+        }
+        if (!isValidPinFormat(body.pin)) {
+          res.status(400).json({
+            error: `PIN musi mieć od ${PIN_MIN_LENGTH} do ${PIN_MAX_LENGTH} cyfr`,
+          });
+          return;
+        }
+        updated = { ...ledger, pin: makePinConfig(body.pin) };
+        break;
+      }
+      case "clearPin": {
+        if (!ledger.pin) {
+          res.status(400).json({ error: "To wydarzenie nie ma kodu PIN" });
+          return;
+        }
+        if (!pinMatches(body.currentPin, ledger.pin)) {
+          res.status(401).json({ error: "Nieprawidłowy obecny PIN" });
+          return;
+        }
+        const { pin: _pin, ...rest } = ledger;
+        updated = rest;
+        break;
+      }
+      case "archiveGroup": {
+        if (slug === GROUP_SLUG) {
+          res.status(409).json({ error: "Głównej grupy nie można usunąć" });
+          return;
+        }
+        // touch:false so archiving does not reset the idle clock the admin
+        // console reports on. Saved here rather than falling through to the
+        // shared save at the bottom, which always touches.
+        const archived: Ledger = {
+          ...ledger,
+          archivedAt: new Date().toISOString(),
+          archivedBy: body.memberId,
+        };
+        await saveLedger(archived, { touch: false });
+        res.status(200).json(withoutPinSecrets(archived));
+        return;
+      }
+      case "removeMember": {
+        const member = ledger.members.find((m) => m.id === body.memberId);
+        if (!member) {
+          res.status(404).json({ error: "Nie znaleziono osoby" });
+          return;
+        }
+        if (ledger.members.length <= 1) {
+          res.status(409).json({ error: "W grupie musi zostać co najmniej jedna osoba" });
+          return;
+        }
+        // Deleted entries can be restored and history still renders them, so
+        // any reference at all is enough to block the removal.
+        const used = memberReferences(ledger, body.memberId);
+        if (used > 0) {
+          res.status(409).json({
+            error: `${member.name} występuje w ${used} wpisach — zamiast usuwać, ukryj tę osobę`,
+          });
+          return;
+        }
+        updated = {
+          ...ledger,
+          members: ledger.members.filter((m) => m.id !== body.memberId),
+        };
+        break;
+      }
       case "setMemberHidden": {
         const members = ledger.members.map((m) =>
           m.id === body.memberId ? { ...m, hidden: body.hidden } : m,
@@ -180,10 +282,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         break;
       }
       case "setSettings": {
-        updated = {
-          ...ledger,
-          settings: { ...ledger.settings, ...body.settings },
-        };
+        const settings = { ...ledger.settings, ...body.settings };
+        if (settings.groupName !== undefined) {
+          const name = settings.groupName.trim().slice(0, 60);
+          if (name) settings.groupName = name;
+          else delete settings.groupName;
+        }
+        updated = { ...ledger, settings };
         break;
       }
       case "setMemberPayment": {
@@ -230,8 +335,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     await saveLedger(updated);
-    res.status(200).json(updated);
+    res.status(200).json(withoutPinSecrets(updated));
   } catch (err) {
+    if (err instanceof LedgerNotFoundError) {
+      res.status(404).json({ error: "Nie znaleziono grupy — sprawdź link" });
+      return;
+    }
     console.error(err);
     res.status(500).json({ error: "Nie udało się zapisać danych" });
   }

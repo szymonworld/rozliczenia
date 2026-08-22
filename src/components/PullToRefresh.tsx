@@ -12,10 +12,12 @@ export function PullToRefresh({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const startY = useRef<number | null>(null);
+  const startX = useRef(0);
   const [pull, setPull] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
   const onTouchStart = (e: TouchEvent) => {
+    startX.current = e.touches[0].clientX;
     if (containerRef.current && containerRef.current.scrollTop <= 0) {
       startY.current = e.touches[0].clientY;
     } else {
@@ -25,8 +27,20 @@ export function PullToRefresh({
 
   const onTouchMove = (e: TouchEvent) => {
     if (startY.current === null || refreshing) return;
+    // A finger that has drifted sideways is not a pull — drop the gesture
+    // rather than fighting the scroller for it.
+    const dx = Math.abs(e.touches[0].clientX - startX.current);
     const delta = e.touches[0].clientY - startY.current;
-    if (delta > 0) setPull(Math.min(delta * 0.5, 96));
+    if (dx > Math.abs(delta)) {
+      startY.current = null;
+      setPull(0);
+      return;
+    }
+    if (delta > 0 && (containerRef.current?.scrollTop ?? 0) <= 0) {
+      setPull(Math.min(delta * 0.5, 96));
+    } else {
+      setPull(0);
+    }
   };
 
   const onTouchEnd = async () => {
@@ -48,7 +62,7 @@ export function PullToRefresh({
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
-      className="min-h-full flex-1 overflow-y-auto"
+      className="app-scroll"
     >
       <div
         style={{ height: pull }}

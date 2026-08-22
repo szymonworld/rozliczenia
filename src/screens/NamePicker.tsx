@@ -4,6 +4,7 @@ import { Icon } from "../components/Icon";
 import { useIdentity } from "../context/IdentityContext";
 import { useLedger } from "../context/LedgerContext";
 import { setMemberPayment } from "../lib/api";
+import { groupName } from "../lib/ledgerView";
 import type { Member } from "../../shared/types";
 
 const inputClass =
@@ -110,7 +111,7 @@ export function NamePicker() {
 
   if (loading || !ledger) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-bg text-sm text-muted">
+      <div className="app-shell items-center justify-center bg-bg text-sm text-muted">
         Ładowanie…
       </div>
     );
@@ -122,14 +123,14 @@ export function NamePicker() {
   return (
     <div
       style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}
-      className="flex min-h-dvh flex-col justify-center bg-bg px-6 py-10"
+      className="app-scroll flex min-h-full flex-col justify-center bg-bg px-6 py-10"
     >
       {step === "payment" && selectedMember ? (
         // Identity is only committed once onboarding finishes, so a reload
         // during step 2 simply starts over rather than half-configuring.
         <PaymentStep member={selectedMember} onDone={() => setWhoAmI(selectedMember.id)} />
       ) : (
-        <div className="mx-auto w-full max-w-sm">
+        <div className="anim-rise mx-auto w-full max-w-sm">
           <div className="mb-8 text-center">
             <span
               className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl text-on-accent"
@@ -137,7 +138,7 @@ export function NamePicker() {
             >
               <Icon name="transfer" className="h-7 w-7" />
             </span>
-            <h1 className="text-2xl font-bold tracking-tight text-ink">Rozliczenia</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-ink">{groupName(ledger)}</h1>
             <p className="mt-1 text-[15px] text-muted">Kim jesteś?</p>
           </div>
 

@@ -202,7 +202,7 @@ export function AddEdit() {
 
   if (!ledger || !whoAmI) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-bg text-sm text-muted">
+      <div className="app-shell items-center justify-center bg-bg text-sm text-muted">
         Ładowanie…
       </div>
     );
@@ -211,269 +211,274 @@ export function AddEdit() {
   const canSubmit = entryType === "expense" ? canSubmitExpense : canSubmitSettlement;
 
   return (
-    <div className="flex min-h-dvh flex-col bg-bg">
+    <div className="app-shell bg-bg">
       <Header title={editingEntry ? "Edytuj wpis" : "Nowy wpis"} back right={<span />} />
 
-      <div className="mx-auto w-full max-w-md space-y-5 px-4 pb-36 pt-4">
-        {!editingEntry && (
-          <SegmentedControl
-            value={entryType}
-            onChange={setEntryType}
-            options={[
-              { value: "expense", label: "Wydatek" },
-              { value: "settlement", label: "Rozliczenie" },
-            ]}
-          />
-        )}
-
-        {/* Amount — the hero field. */}
-        <div className="card rounded-3xl px-5 py-6">
-          <label htmlFor="amount" className="block text-center text-[13px] font-medium text-muted">
-            Kwota
-          </label>
-          <div className="mt-2 flex items-baseline justify-center gap-1.5">
-            <input
-              id="amount"
-              inputMode="decimal"
-              value={amountInput}
-              onChange={(e) => setAmountInput(e.target.value)}
-              placeholder="0,00"
-              className="num w-full max-w-[8ch] border-none bg-transparent text-center text-[2.5rem] font-bold leading-none tracking-tight text-ink outline-none placeholder:text-muted/40"
+      <div className="app-scroll">
+        <div
+          style={{ paddingBottom: "calc(9rem + env(safe-area-inset-bottom))" }}
+          className="stagger mx-auto w-full max-w-md space-y-5 px-4 pt-4"
+        >
+          {!editingEntry && (
+            <SegmentedControl
+              value={entryType}
+              onChange={setEntryType}
+              options={[
+                { value: "expense", label: "Wydatek" },
+                { value: "settlement", label: "Rozliczenie" },
+              ]}
             />
-            <span className="text-xl font-semibold text-muted">zł</span>
+          )}
+
+          {/* Amount — the hero field. */}
+          <div className="card rounded-3xl px-5 py-6">
+            <label htmlFor="amount" className="block text-center text-[13px] font-medium text-muted">
+              Kwota
+            </label>
+            <div className="mt-2 flex items-baseline justify-center gap-1.5">
+              <input
+                id="amount"
+                inputMode="decimal"
+                value={amountInput}
+                onChange={(e) => setAmountInput(e.target.value)}
+                placeholder="0,00"
+                className="num w-full max-w-[8ch] border-none bg-transparent text-center text-[2.5rem] font-bold leading-none tracking-tight text-ink outline-none placeholder:text-muted/40"
+              />
+              <span className="text-xl font-semibold text-muted">zł</span>
+            </div>
+            {perPerson !== null && perPerson > 0 && entryType === "expense" && (
+              <p className="mt-3 text-center text-[13px] text-muted">
+                po {formatGrosze(perPerson)} na osobę
+              </p>
+            )}
           </div>
-          {perPerson !== null && perPerson > 0 && entryType === "expense" && (
-            <p className="mt-3 text-center text-[13px] text-muted">
-              po {formatGrosze(perPerson)} na osobę
-            </p>
+
+          {entryType === "expense" ? (
+            <>
+              <div>
+                <label htmlFor="description" className={labelClass}>
+                  Opis
+                </label>
+                <input
+                  id="description"
+                  type="text"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="np. zakupy, piwo, bilety"
+                  className={fieldClass}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="date" className={labelClass}>
+                  Data
+                </label>
+                <input
+                  id="date"
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className={fieldClass}
+                />
+              </div>
+
+              <div>
+                <span className={labelClass}>Kto zapłacił</span>
+                <div className="flex flex-wrap gap-2">
+                  {selectableMembers.map((m) => (
+                    <Chip
+                      key={m.id}
+                      label={m.name}
+                      seed={m.id}
+                      selected={payerId === m.id}
+                      onClick={() => setPayerId(m.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-[13px] font-medium text-muted">
+                    Podziel na ({participantIds.length})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={toggleAll}
+                    className="press rounded-full px-2 py-1 text-[13px] font-medium text-accent"
+                  >
+                    {allSelected ? "Odznacz wszystkich" : "Zaznacz wszystkich"}
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {selectableMembers.map((m) => (
+                    <Chip
+                      key={m.id}
+                      label={m.name}
+                      seed={m.id}
+                      selected={participantIds.includes(m.id)}
+                      onClick={() => toggleParticipant(m.id)}
+                    />
+                  ))}
+                </div>
+                {participantIds.length === 0 && (
+                  <p className="mt-2 text-[13px] text-neg">Wybierz co najmniej jedną osobę.</p>
+                )}
+              </div>
+
+              <label className="press card flex min-h-12 cursor-pointer items-center gap-3 rounded-2xl px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={exactSplit}
+                  onChange={(e) => setExactSplit(e.target.checked)}
+                  className="h-5 w-5 rounded"
+                />
+                <span className="flex-1 text-[15px] text-ink">Podziel dokładnie</span>
+                <span className="text-[13px] text-muted">
+                  {exactSplit ? "kwoty ręcznie" : "po równo"}
+                </span>
+              </label>
+
+              {exactSplit && (
+                <div className="card space-y-1 rounded-3xl p-3">
+                  {participantIds.map((mid) => {
+                    const member = allMembers.find((m) => m.id === mid);
+                    return (
+                      <div key={mid} className="flex items-center gap-3 px-1 py-1">
+                        <Avatar name={member?.name ?? "?"} seed={mid} size="sm" />
+                        <span className="flex-1 text-[15px] text-ink">{member?.name}</span>
+                        <input
+                          inputMode="decimal"
+                          value={exactAmounts[mid] ?? ""}
+                          onChange={(e) =>
+                            setExactAmounts((prev) => ({ ...prev, [mid]: e.target.value }))
+                          }
+                          placeholder="0,00"
+                          aria-label={`Kwota dla ${member?.name}`}
+                          className="num min-h-11 w-28 rounded-xl border border-line bg-surface-2 px-3 py-1 text-right text-[15px] text-ink outline-none focus:border-accent"
+                        />
+                      </div>
+                    );
+                  })}
+                  <p
+                    className="mt-1 rounded-xl px-3 py-2 text-right text-[13px] font-medium"
+                    style={{
+                      background:
+                        exactRemaining === 0 ? "var(--pos-soft)" : "var(--neg-soft)",
+                      color: exactRemaining === 0 ? "var(--pos)" : "var(--neg)",
+                    }}
+                  >
+                    {exactRemaining === 0
+                      ? "Kwoty się zgadzają"
+                      : exactRemaining > 0
+                        ? `Pozostało ${formatGrosze(exactRemaining)}`
+                        : `Za dużo o ${formatGrosze(-exactRemaining)}`}
+                  </p>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div>
+                <label htmlFor="date-settlement" className={labelClass}>
+                  Data
+                </label>
+                <input
+                  id="date-settlement"
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className={fieldClass}
+                />
+              </div>
+
+              <div>
+                <span className={labelClass}>Kto przelewa</span>
+                <div className="flex flex-wrap gap-2">
+                  {allMembers.map((m) => (
+                    <Chip
+                      key={m.id}
+                      label={m.name}
+                      seed={m.id}
+                      selected={fromId === m.id}
+                      onClick={() => setFromId(m.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-center text-muted">
+                <Icon name="arrow" className="h-5 w-5 rotate-90" />
+              </div>
+
+              <div>
+                <span className={labelClass}>Kto otrzymuje</span>
+                <div className="flex flex-wrap gap-2">
+                  {allMembers.map((m) => (
+                    <Chip
+                      key={m.id}
+                      label={m.name}
+                      seed={m.id}
+                      selected={toId === m.id}
+                      onClick={() => setToId(m.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {fromId === toId && (
+                <p className="text-[13px] text-neg">Strony rozliczenia muszą być różne.</p>
+              )}
+
+              {(() => {
+                const recipient = allMembers.find((m) => m.id === toId);
+                const rows = [
+                  { label: "BLIK", value: recipient?.payment?.blik },
+                  { label: "Konto", value: recipient?.payment?.iban },
+                ].filter((r) => r.value);
+                if (!recipient || rows.length === 0) return null;
+
+                return (
+                  <div className="card rounded-3xl p-4">
+                    <p className="mb-2 text-[13px] font-medium text-muted">
+                      Dane do przelewu &mdash; {recipient.name}
+                    </p>
+                    <ul className="space-y-2">
+                      {rows.map((r) => (
+                        <li key={r.label} className="flex items-center gap-3">
+                          <span className="w-12 shrink-0 text-[13px] text-muted">{r.label}</span>
+                          <span className="num min-w-0 flex-1 truncate text-[15px] text-ink">
+                            {r.value}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={`Kopiuj ${r.label}`}
+                            onClick={async () => {
+                              showToast(
+                                (await copyText(r.value as string))
+                                  ? `${r.label} skopiowany`
+                                  : "Nie udało się skopiować",
+                              );
+                            }}
+                            className="press flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-accent active:bg-surface-2"
+                          >
+                            <Icon name="copy" className="h-[18px] w-[18px]" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })()}
+            </>
+          )}
+
+          {error && (
+            <Banner tone="neg" icon="alert">
+              {error}
+            </Banner>
           )}
         </div>
-
-        {entryType === "expense" ? (
-          <>
-            <div>
-              <label htmlFor="description" className={labelClass}>
-                Opis
-              </label>
-              <input
-                id="description"
-                type="text"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="np. zakupy, piwo, bilety"
-                className={fieldClass}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="date" className={labelClass}>
-                Data
-              </label>
-              <input
-                id="date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className={fieldClass}
-              />
-            </div>
-
-            <div>
-              <span className={labelClass}>Kto zapłacił</span>
-              <div className="flex flex-wrap gap-2">
-                {selectableMembers.map((m) => (
-                  <Chip
-                    key={m.id}
-                    label={m.name}
-                    seed={m.id}
-                    selected={payerId === m.id}
-                    onClick={() => setPayerId(m.id)}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-[13px] font-medium text-muted">
-                  Podziel na ({participantIds.length})
-                </span>
-                <button
-                  type="button"
-                  onClick={toggleAll}
-                  className="press rounded-full px-2 py-1 text-[13px] font-medium text-accent"
-                >
-                  {allSelected ? "Odznacz wszystkich" : "Zaznacz wszystkich"}
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {selectableMembers.map((m) => (
-                  <Chip
-                    key={m.id}
-                    label={m.name}
-                    seed={m.id}
-                    selected={participantIds.includes(m.id)}
-                    onClick={() => toggleParticipant(m.id)}
-                  />
-                ))}
-              </div>
-              {participantIds.length === 0 && (
-                <p className="mt-2 text-[13px] text-neg">Wybierz co najmniej jedną osobę.</p>
-              )}
-            </div>
-
-            <label className="press card flex min-h-12 cursor-pointer items-center gap-3 rounded-2xl px-4 py-3">
-              <input
-                type="checkbox"
-                checked={exactSplit}
-                onChange={(e) => setExactSplit(e.target.checked)}
-                className="h-5 w-5 rounded"
-              />
-              <span className="flex-1 text-[15px] text-ink">Podziel dokładnie</span>
-              <span className="text-[13px] text-muted">
-                {exactSplit ? "kwoty ręcznie" : "po równo"}
-              </span>
-            </label>
-
-            {exactSplit && (
-              <div className="card space-y-1 rounded-3xl p-3">
-                {participantIds.map((mid) => {
-                  const member = allMembers.find((m) => m.id === mid);
-                  return (
-                    <div key={mid} className="flex items-center gap-3 px-1 py-1">
-                      <Avatar name={member?.name ?? "?"} seed={mid} size="sm" />
-                      <span className="flex-1 text-[15px] text-ink">{member?.name}</span>
-                      <input
-                        inputMode="decimal"
-                        value={exactAmounts[mid] ?? ""}
-                        onChange={(e) =>
-                          setExactAmounts((prev) => ({ ...prev, [mid]: e.target.value }))
-                        }
-                        placeholder="0,00"
-                        aria-label={`Kwota dla ${member?.name}`}
-                        className="num min-h-11 w-28 rounded-xl border border-line bg-surface-2 px-3 py-1 text-right text-[15px] text-ink outline-none focus:border-accent"
-                      />
-                    </div>
-                  );
-                })}
-                <p
-                  className="mt-1 rounded-xl px-3 py-2 text-right text-[13px] font-medium"
-                  style={{
-                    background:
-                      exactRemaining === 0 ? "var(--pos-soft)" : "var(--neg-soft)",
-                    color: exactRemaining === 0 ? "var(--pos)" : "var(--neg)",
-                  }}
-                >
-                  {exactRemaining === 0
-                    ? "Kwoty się zgadzają"
-                    : exactRemaining > 0
-                      ? `Pozostało ${formatGrosze(exactRemaining)}`
-                      : `Za dużo o ${formatGrosze(-exactRemaining)}`}
-                </p>
-              </div>
-            )}
-          </>
-        ) : (
-          <>
-            <div>
-              <label htmlFor="date-settlement" className={labelClass}>
-                Data
-              </label>
-              <input
-                id="date-settlement"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className={fieldClass}
-              />
-            </div>
-
-            <div>
-              <span className={labelClass}>Kto przelewa</span>
-              <div className="flex flex-wrap gap-2">
-                {allMembers.map((m) => (
-                  <Chip
-                    key={m.id}
-                    label={m.name}
-                    seed={m.id}
-                    selected={fromId === m.id}
-                    onClick={() => setFromId(m.id)}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="flex justify-center text-muted">
-              <Icon name="arrow" className="h-5 w-5 rotate-90" />
-            </div>
-
-            <div>
-              <span className={labelClass}>Kto otrzymuje</span>
-              <div className="flex flex-wrap gap-2">
-                {allMembers.map((m) => (
-                  <Chip
-                    key={m.id}
-                    label={m.name}
-                    seed={m.id}
-                    selected={toId === m.id}
-                    onClick={() => setToId(m.id)}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {fromId === toId && (
-              <p className="text-[13px] text-neg">Strony rozliczenia muszą być różne.</p>
-            )}
-
-            {(() => {
-              const recipient = allMembers.find((m) => m.id === toId);
-              const rows = [
-                { label: "BLIK", value: recipient?.payment?.blik },
-                { label: "Konto", value: recipient?.payment?.iban },
-              ].filter((r) => r.value);
-              if (!recipient || rows.length === 0) return null;
-
-              return (
-                <div className="card rounded-3xl p-4">
-                  <p className="mb-2 text-[13px] font-medium text-muted">
-                    Dane do przelewu &mdash; {recipient.name}
-                  </p>
-                  <ul className="space-y-2">
-                    {rows.map((r) => (
-                      <li key={r.label} className="flex items-center gap-3">
-                        <span className="w-12 shrink-0 text-[13px] text-muted">{r.label}</span>
-                        <span className="num min-w-0 flex-1 truncate text-[15px] text-ink">
-                          {r.value}
-                        </span>
-                        <button
-                          type="button"
-                          aria-label={`Kopiuj ${r.label}`}
-                          onClick={async () => {
-                            showToast(
-                              (await copyText(r.value as string))
-                                ? `${r.label} skopiowany`
-                                : "Nie udało się skopiować",
-                            );
-                          }}
-                          className="press flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-accent active:bg-surface-2"
-                        >
-                          <Icon name="copy" className="h-[18px] w-[18px]" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })()}
-          </>
-        )}
-
-        {error && (
-          <Banner tone="neg" icon="alert">
-            {error}
-          </Banner>
-        )}
       </div>
 
       <div

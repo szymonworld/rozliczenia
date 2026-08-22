@@ -16,7 +16,7 @@ import { useLedger } from "../context/LedgerContext";
 import { useToast } from "../context/ToastContext";
 import { computeNetBalances, computePairwiseDebts, suggestTransfers } from "../lib/balances";
 import type { SuggestedTransfer } from "../lib/balances";
-import { countableEntries, pendingConfirmations, visibleEntries } from "../lib/ledgerView";
+import { countableEntries, groupName, pendingConfirmations, visibleEntries } from "../lib/ledgerView";
 import { confirmSettlement, rejectSettlement } from "../lib/api";
 import { buildSummaryText, shareText } from "../lib/share";
 import { formatGrosze } from "../lib/money";
@@ -83,7 +83,7 @@ export function Home() {
   const handleShare = async () => {
     if (!ledger) return;
     const result = await shareText(
-      "Rozliczenia",
+      title,
       buildSummaryText(ledger.members, balances, transfers),
     );
     if (result === "copied") showToast("Podsumowanie skopiowane do schowka");
@@ -102,26 +102,30 @@ export function Home() {
     else if (result === "failed") showToast("Nie udało się udostępnić przypomnienia");
   };
 
+  const title = groupName(ledger);
+
   const payRecipient =
     paying && ledger ? ledger.members.find((m) => m.id === paying.toId) : undefined;
 
   if (!ledger) {
     return (
-      <div className="flex min-h-dvh flex-col bg-bg">
-        <Header title="Rozliczenia" />
-        <div className="mx-auto w-full max-w-md space-y-4 px-4 pt-4">
-          <div className="h-40 animate-pulse rounded-3xl bg-surface-2" />
-          <div className="h-12 animate-pulse rounded-2xl bg-surface-2" />
-          <div className="h-32 animate-pulse rounded-3xl bg-surface-2" />
+      <div className="app-shell bg-bg">
+        <Header title={groupName(ledger)} />
+        <div className="app-scroll">
+          <div className="stagger mx-auto w-full max-w-md space-y-4 px-4 pt-4">
+            <div className="h-40 animate-pulse rounded-3xl bg-surface-2" />
+            <div className="h-12 animate-pulse rounded-2xl bg-surface-2" />
+            <div className="h-32 animate-pulse rounded-3xl bg-surface-2" />
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-bg">
+    <div className="app-shell bg-bg">
       <Header
-        title="Rozliczenia"
+        title={title}
         right={
           <div className="flex items-center">
             <button
@@ -142,7 +146,8 @@ export function Home() {
         }
       />
       <PullToRefresh onRefresh={refetch}>
-        <div className="mx-auto w-full max-w-md space-y-4 px-4 pb-32 pt-4">
+        <div style={{ paddingBottom: "calc(8rem + env(safe-area-inset-bottom))" }}
+          className="stagger mx-auto w-full max-w-md space-y-4 px-4 pt-4">
           {isOffline && (
             <Banner tone="warn" icon="cloud-off">
               Jesteś offline — wyświetlane są ostatnio zapisane dane.
@@ -224,6 +229,22 @@ export function Home() {
               <span className="flex-1">
                 <span className="block text-[15px] font-medium text-ink">Podsumowanie</span>
                 <span className="block text-[13px] text-muted">Kto ile wydał i skonsumował</span>
+              </span>
+              <Icon name="chevron" className="h-4 w-4 text-muted/60" />
+            </button>
+            <button
+              onClick={() => navigate("/nowe")}
+              className="press flex w-full items-center gap-3 px-4 py-3 text-left active:bg-surface-2"
+            >
+              <span
+                className="flex h-9 w-9 items-center justify-center rounded-full text-on-accent"
+                style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-2))" }}
+              >
+                <Icon name="plus" className="h-[18px] w-[18px]" strokeWidth={2.25} />
+              </span>
+              <span className="flex-1">
+                <span className="block text-[15px] font-medium text-ink">Nowe wydarzenie</span>
+                <span className="block text-[13px] text-muted">Inni ludzie, osobny link</span>
               </span>
               <Icon name="chevron" className="h-4 w-4 text-muted/60" />
             </button>

@@ -2,6 +2,23 @@
 // confirmation policy. Every balance calculation should start here.
 import type { Entry, Ledger, SettlementEntry } from "../../shared/types";
 
+export const DEFAULT_GROUP_NAME = "Rozliczenia";
+
+/** What this group calls itself, falling back to the app's own name. */
+export function groupName(ledger: Ledger | null): string {
+  return ledger?.settings?.groupName?.trim() || DEFAULT_GROUP_NAME;
+}
+
+/** How many entries would break if this member were removed. */
+export function memberUsageCount(ledger: Ledger | null, memberId: string): number {
+  if (!ledger) return 0;
+  return ledger.entries.filter((e) =>
+    e.type === "expense"
+      ? e.payerId === memberId || e.shares.some((sh) => sh.memberId === memberId)
+      : e.fromId === memberId || e.toId === memberId,
+  ).length;
+}
+
 export type SettlementStatus = "confirmed" | "rejected" | "pending";
 
 export function settlementStatus(entry: SettlementEntry): SettlementStatus {

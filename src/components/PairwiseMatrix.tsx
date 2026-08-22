@@ -31,7 +31,7 @@ export function PairwiseMatrix({ members, debts }: { members: Member[]; debts: P
 
   return (
     <>
-      <ul className="card divide-y divide-line overflow-hidden rounded-3xl">
+      <ul className="stagger-rows card divide-y divide-line overflow-hidden rounded-3xl">
         {rows.map((r) => (
           <li key={`${r.fromId}-${r.toId}`} className="flex items-center gap-3 px-4 py-3">
             <Avatar name={nameOf(r.fromId)} seed={r.fromId} size="sm" />
