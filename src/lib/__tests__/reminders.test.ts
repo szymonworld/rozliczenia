@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   buildReminderText,
+  buildSelfReminderLine,
   REMINDER_TEMPLATE_COUNT,
   reminderTemplatesForTest,
+  SELF_REMINDER_TEMPLATE_COUNT,
+  selfReminderTemplatesForTest,
 } from "../reminders";
 
 describe("buildReminderText", () => {
@@ -29,5 +32,20 @@ describe("buildReminderText", () => {
     // Not asserting all of them appear — that would be flaky — just that the
     // picker is not stuck on a single template.
     expect(seen.size).toBeGreaterThan(Math.min(3, REMINDER_TEMPLATE_COUNT));
+  });
+});
+
+describe("buildSelfReminderLine", () => {
+  it("never mentions an amount — the card's headline figure already does", () => {
+    // A crude but effective proxy: no digits anywhere in any variant.
+    for (const line of selfReminderTemplatesForTest) {
+      expect(line).not.toMatch(/\d/);
+    }
+  });
+
+  it("actually varies rather than returning one fixed string", () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 400; i++) seen.add(buildSelfReminderLine());
+    expect(seen.size).toBeGreaterThan(Math.min(3, SELF_REMINDER_TEMPLATE_COUNT));
   });
 });

@@ -27,7 +27,7 @@ import { confirmSettlement, rejectSettlement } from "../lib/api";
 import { buildSummaryText, shareText } from "../lib/share";
 import { formatGrosze } from "../lib/money";
 import { plural } from "../lib/plural";
-import { buildReminderText } from "../lib/reminders";
+import { buildReminderText, buildSelfReminderLine } from "../lib/reminders";
 import type { Ledger } from "../../shared/types";
 
 export function Home() {
@@ -57,6 +57,15 @@ export function Home() {
   const myTransfers = transfers.filter((t) => t.fromId === whoAmI || t.toId === whoAmI);
   const peopleWord = plural(myTransfers.length, "osoby", "osób", "osób");
 
+  // A random self-nudge when you're the one who owes, picked once per balance
+  // change rather than on every re-render — otherwise it would reshuffle
+  // itself while you're just looking at the screen. Says nothing about the
+  // amount: that already sits right above it as the card's headline figure.
+  const reminderLine = useMemo(() => {
+    if (myBalance >= 0) return null;
+    return buildSelfReminderLine();
+  }, [myBalance]);
+
   const subtitle =
     myBalance === 0
       ? shown.length === 0
@@ -64,7 +73,7 @@ export function Home() {
         : "Nie masz żadnych zaległości."
       : myBalance > 0
         ? `Od ${myTransfers.length} ${peopleWord}`
-        : `Do ${myTransfers.length} ${peopleWord}`;
+        : (reminderLine ?? `Do ${myTransfers.length} ${peopleWord}`);
 
   const run = async (fn: () => Promise<Ledger>, fallback: string) => {
     setBusy(true);
