@@ -176,7 +176,12 @@ export function Home() {
             }}
           />
 
-          <BalanceCard amountGrosze={myBalance} subtitle={subtitle} />
+          <BalanceCard
+            amountGrosze={myBalance}
+            subtitle={subtitle}
+            memberName={ledger.members.find((m) => m.id === whoAmI)?.name}
+            memberId={whoAmI ?? undefined}
+          />
 
           <SegmentedControl
             value={view}

@@ -1,13 +1,19 @@
 import { formatGrosze } from "../lib/money";
+import { Avatar } from "./Avatar";
 import { useCountUp } from "../lib/useCountUp";
 import { Icon } from "./Icon";
 
 export function BalanceCard({
   amountGrosze,
   subtitle,
+  memberName,
+  memberId,
 }: {
   amountGrosze: number;
   subtitle?: string;
+  /** Whose balance this is — several people often share one device. */
+  memberName?: string;
+  memberId?: string;
 }) {
   const isZero = amountGrosze === 0;
   const isPositive = amountGrosze > 0;
@@ -43,7 +49,7 @@ export function BalanceCard({
         }}
       />
 
-      <div className="relative flex">
+      <div className="relative flex items-center gap-2">
         <span
           className="flex items-center gap-1.5 rounded-full py-1 pl-1 pr-2.5"
           style={{ color: tone, background: `color-mix(in oklab, ${tone} 14%, transparent)` }}
@@ -64,6 +70,13 @@ export function BalanceCard({
           </span>
           <span className="text-[12px] font-semibold uppercase tracking-[0.08em]">{label}</span>
         </span>
+
+        {memberName && (
+          <span className="ml-auto flex min-w-0 items-center gap-1.5 text-[13px] font-medium text-muted">
+            <Avatar name={memberName} seed={memberId ?? memberName} size="xs" />
+            <span className="truncate">{memberName}</span>
+          </span>
+        )}
       </div>
 
       <p

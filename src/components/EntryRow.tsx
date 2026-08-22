@@ -121,13 +121,22 @@ export function EntryRow({
             <Icon name="undo" className="h-[18px] w-[18px]" />
           </button>
         ) : (
-          <button
-            aria-label="Usuń wpis"
-            onClick={() => onDelete(entry.id)}
-            className="press flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted/70 active:bg-neg-soft active:text-neg"
-          >
-            <Icon name="trash" className="h-[18px] w-[18px]" />
-          </button>
+          <>
+            <button
+              aria-label="Duplikuj wpis"
+              onClick={() => navigate("/dodaj", { state: { duplicate: entry } })}
+              className="press flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted/70 active:bg-surface-2"
+            >
+              <Icon name="copy" className="h-[18px] w-[18px]" />
+            </button>
+            <button
+              aria-label="Usuń wpis"
+              onClick={() => onDelete(entry.id)}
+              className="press flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted/70 active:bg-neg-soft active:text-neg"
+            >
+              <Icon name="trash" className="h-[18px] w-[18px]" />
+            </button>
+          </>
         )}
       </div>
 

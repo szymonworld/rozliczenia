@@ -40,15 +40,25 @@ export function AddEdit() {
     () => (id ? ledger?.entries.find((e) => e.id === id) : undefined),
     [id, ledger],
   );
-  const prefillSettlement = (location.state as { settlement?: SuggestedTransfer } | null)
-    ?.settlement;
+  const navState = location.state as
+    | { settlement?: SuggestedTransfer; duplicate?: Entry }
+    | null;
+  const prefillSettlement = navState?.settlement;
+  // Duplicating copies everything except identity and date: a repeat of
+  // yesterday's shop run is today's entry, not an edit of yesterday's.
+  const duplicateOf = navState?.duplicate;
 
   const [entryType, setEntryType] = useState<EntryType>(
-    editingEntry?.type ?? (prefillSettlement ? "settlement" : "expense"),
+    editingEntry?.type ?? duplicateOf?.type ?? (prefillSettlement ? "settlement" : "expense"),
   );
 
   // --- expense fields ---
-  const initialExpense = editingEntry?.type === "expense" ? editingEntry : undefined;
+  const initialExpense =
+    editingEntry?.type === "expense"
+      ? editingEntry
+      : duplicateOf?.type === "expense"
+        ? duplicateOf
+        : undefined;
   const [amountInput, setAmountInput] = useState(
     initialExpense
       ? groszeToInputValue(initialExpense.amountGrosze)
@@ -58,6 +68,7 @@ export function AddEdit() {
   );
   const [description, setDescription] = useState(initialExpense?.description ?? "");
   const [payerId, setPayerId] = useState(initialExpense?.payerId ?? whoAmI ?? "");
+  // Deliberately not carried over from a duplicate.
   const [date, setDate] = useState(editingEntry?.date ?? todayIso());
   const allMembers = ledger?.members ?? [];
   const selectableMembers = allMembers.filter(
@@ -71,7 +82,16 @@ export function AddEdit() {
       ? initialExpense.shares.map((s) => s.memberId)
       : selectableMembers.filter((m) => !m.hidden).map((m) => m.id),
   );
-  const [exactSplit, setExactSplit] = useState(false);
+  // An entry whose shares are not what splitEqual would produce was split by
+  // hand. Defaulting this to false silently re-equalised such an expense the
+  // moment it was opened for editing (or duplicated).
+  const [exactSplit, setExactSplit] = useState(() => {
+    if (!initialExpense) return false;
+    const ids = initialExpense.shares.map((s) => s.memberId);
+    const equal = splitEqual(initialExpense.amountGrosze, ids, initialExpense.payerId);
+    const byId = new Map(equal.map((s) => [s.memberId, s.amountGrosze]));
+    return initialExpense.shares.some((s) => byId.get(s.memberId) !== s.amountGrosze);
+  });
   // Only meaningful when adding a fresh expense you paid: people who already
   // gave you their share get a settlement recorded alongside it, so the
   // expense stays in history but their part never shows up as owed.
@@ -86,7 +106,12 @@ export function AddEdit() {
   });
 
   // --- settlement fields ---
-  const initialSettlement = editingEntry?.type === "settlement" ? editingEntry : undefined;
+  const initialSettlement =
+    editingEntry?.type === "settlement"
+      ? editingEntry
+      : duplicateOf?.type === "settlement"
+        ? duplicateOf
+        : undefined;
   const [fromId, setFromId] = useState(
     initialSettlement?.fromId ?? prefillSettlement?.fromId ?? whoAmI ?? "",
   );

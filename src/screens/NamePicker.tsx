@@ -3,7 +3,7 @@ import { Avatar } from "../components/Avatar";
 import { Icon } from "../components/Icon";
 import { useIdentity } from "../context/IdentityContext";
 import { useLedger } from "../context/LedgerContext";
-import { setMemberPayment } from "../lib/api";
+import { addMember, setMemberPayment } from "../lib/api";
 import { groupName } from "../lib/ledgerView";
 import type { Member } from "../../shared/types";
 
@@ -104,10 +104,38 @@ function PaymentStep({ member, onDone }: { member: Member; onDone: () => void })
 }
 
 export function NamePicker() {
-  const { ledger, loading } = useLedger();
+  const { ledger, loading, applyLedger } = useLedger();
   const { setWhoAmI } = useIdentity();
   const [selected, setSelected] = useState<string | null>(null);
   const [step, setStep] = useState<"name" | "payment">("name");
+  // Someone handed the link to a person nobody had added yet. Without this
+  // they are stuck: every name on the grid belongs to someone else.
+  const [addingSelf, setAddingSelf] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [joining, setJoining] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
+
+  const joinAsNewMember = async () => {
+    const name = newName.trim();
+    if (!name || joining) return;
+    setJoining(true);
+    setJoinError(null);
+    try {
+      const next = await addMember(name);
+      applyLedger(next);
+      // The server assigns the id, so find the member it just appended rather
+      // than guessing how the name was slugified.
+      const added = next.members[next.members.length - 1];
+      setSelected(added.id);
+      setAddingSelf(false);
+      setNewName("");
+      setStep("payment");
+    } catch (err) {
+      setJoinError(err instanceof Error ? err.message : "Nie udało się dodać osoby");
+    } finally {
+      setJoining(false);
+    }
+  };
 
   if (loading || !ledger) {
     return (
@@ -168,14 +196,59 @@ export function NamePicker() {
             })}
           </fieldset>
 
-          <button
-            disabled={!selected}
-            onClick={() => selected && setStep("payment")}
-            style={selected ? gradient : undefined}
-            className="press mt-8 min-h-13 w-full rounded-2xl bg-surface-2 py-3.5 font-semibold text-on-accent disabled:text-muted"
-          >
-            Dalej
-          </button>
+          {addingSelf ? (
+            <div className="anim-rise mt-6 space-y-3">
+              <input
+                autoFocus
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && void joinAsNewMember()}
+                maxLength={60}
+                placeholder="Twoje imię"
+                aria-label="Twoje imię"
+                className={inputClass}
+              />
+              {joinError && (
+                <p className="px-1 text-[13px]" style={{ color: "var(--neg)" }}>
+                  {joinError}
+                </p>
+              )}
+              <button
+                disabled={!newName.trim() || joining}
+                onClick={() => void joinAsNewMember()}
+                style={newName.trim() && !joining ? gradient : undefined}
+                className="press min-h-13 w-full rounded-2xl bg-surface-2 py-3.5 font-semibold text-on-accent disabled:text-muted"
+              >
+                {joining ? "Dodawanie…" : "Dołącz"}
+              </button>
+              <button
+                onClick={() => {
+                  setAddingSelf(false);
+                  setJoinError(null);
+                }}
+                className="press min-h-11 w-full rounded-xl text-[14px] font-medium text-muted"
+              >
+                Anuluj
+              </button>
+            </div>
+          ) : (
+            <>
+              <button
+                disabled={!selected}
+                onClick={() => selected && setStep("payment")}
+                style={selected ? gradient : undefined}
+                className="press mt-8 min-h-13 w-full rounded-2xl bg-surface-2 py-3.5 font-semibold text-on-accent disabled:text-muted"
+              >
+                Dalej
+              </button>
+              <button
+                onClick={() => setAddingSelf(true)}
+                className="press mt-2 min-h-11 w-full rounded-xl text-[14px] font-medium text-accent"
+              >
+                Nie ma mnie na liście
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
