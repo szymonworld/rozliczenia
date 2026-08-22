@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { setGroupSlug } from "../lib/api";
-import { useLedger } from "../context/LedgerContext";
 
 /**
  * Landing point for the secret link, /g/{slug}. Remembers the slug on this
@@ -11,15 +10,17 @@ import { useLedger } from "../context/LedgerContext";
 export function JoinGroup() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const { refetch } = useLedger();
 
   useEffect(() => {
     if (slug) {
       setGroupSlug(slug);
-      void refetch();
+      // Hard reload rather than a route change: identity is per group and is
+      // read once when the provider mounts.
+      window.location.replace("/");
+      return;
     }
     navigate("/", { replace: true });
-  }, [slug, navigate, refetch]);
+  }, [slug, navigate]);
 
   return (
     <div className="app-shell items-center justify-center bg-bg text-sm text-muted">

@@ -25,13 +25,19 @@ import { PinLock } from "./screens/PinLock";
  */
 function Gate({ children }: { children: ReactNode }) {
   const { whoAmI } = useIdentity();
-  const { groupNotFound, pinRequired } = useLedger();
+  const { ledger, groupNotFound, pinRequired } = useLedger();
 
   // No slug at all is refused up front, so a device without the secret link
   // never renders the app — not even briefly from the cache.
   if (!getGroupSlug() || groupNotFound) return <NeedLink />;
   if (pinRequired) return <PinLock />;
-  if (!whoAmI) return <NamePicker />;
+
+  // The stored id has to belong to *this* group. Identity is scoped per slug,
+  // but a stale one can still survive a switch — the provider reads storage
+  // once at start-up, before the join route has swapped the slug over. Checking
+  // membership here makes the gate correct no matter how you arrived.
+  const known = !ledger || ledger.members.some((m) => m.id === whoAmI);
+  if (!whoAmI || !known) return <NamePicker />;
   return <>{children}</>;
 }
 
