@@ -1,5 +1,6 @@
 import type {
   Entry,
+  EntryChanges,
   EntryWriteRequest,
   GroupCreateResponse,
   Ledger,
@@ -251,7 +252,7 @@ export async function createEntry(entry: Entry): Promise<Ledger> {
 
 export async function updateEntry(
   id: string,
-  changes: Partial<Entry>,
+  changes: EntryChanges,
   editedBy: string,
 ): Promise<Ledger> {
   return postEntry({ action: "update", id, changes, editedBy });

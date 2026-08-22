@@ -121,6 +121,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           editedBy: body.editedBy,
           previousValue,
         } as Entry;
+        // Editing a foreign entry back into the base currency: the spread put
+        // null here, and leaving it would claim the entry still cost 30 EUR.
+        if (body.changes.foreign === null) {
+          delete (merged as { foreign?: unknown }).foreign;
+        }
         const err = validateEntry(merged);
         if (err) {
           res.status(400).json({ error: err });

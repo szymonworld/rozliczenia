@@ -94,9 +94,9 @@ export function EntryRow({
               </span>
               <span className="num shrink-0 text-right text-[15px] font-semibold text-ink">
                 {formatGrosze(entry.amountGrosze)}
-                {/* What was actually typed, so a foreign expense is
+                {/* What was actually typed, so a foreign entry is
                     recognisable without opening it. */}
-                {entry.type === "expense" && entry.foreign && (
+                {entry.foreign && (
                   <span className="block text-[12px] font-normal text-muted">
                     {formatForeign(entry.foreign.amountMinor, entry.foreign.code)}
                   </span>

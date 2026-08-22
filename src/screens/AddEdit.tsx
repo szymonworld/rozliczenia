@@ -26,7 +26,7 @@ import { plural } from "../lib/plural";
 import { isClosed } from "../lib/ledgerView";
 import { CATEGORIES } from "../lib/categories";
 import { Check } from "../components/Check";
-import type { Entry, ExpenseCategory, Share } from "../../shared/types";
+import type { Entry, EntryChanges, ExpenseCategory, Share } from "../../shared/types";
 import type { SuggestedTransfer } from "../lib/balances";
 
 type EntryType = "expense" | "settlement";
@@ -116,15 +116,6 @@ export function AddEdit() {
   });
   // Absent means 1 — "counts as one person" is the overwhelming default.
   const [weights, setWeights] = useState<Record<string, number>>({});
-
-  // Which currency the amount box is accepting right now. Reopening an entry
-  // that was entered in a foreign currency puts you back in that currency.
-  const groupCurrency = ledger?.settings?.currency ?? undefined;
-  const [inForeign, setInForeign] = useState(Boolean(initialExpense?.foreign));
-  // Only meaningful when adding a fresh expense you paid: people who already
-  // gave you their share get a settlement recorded alongside it, so the
-  // expense stays in history but their part never shows up as owed.
-  const [alreadyPaidIds, setAlreadyPaidIds] = useState<string[]>([]);
   const [exactAmounts, setExactAmounts] = useState<Record<string, string>>(() => {
     if (initialExpense) {
       const map: Record<string, string> = {};
@@ -133,6 +124,10 @@ export function AddEdit() {
     }
     return {};
   });
+  // Only meaningful when adding a fresh expense you paid: people who already
+  // gave you their share get a settlement recorded alongside it, so the
+  // expense stays in history but their part never shows up as owed.
+  const [alreadyPaidIds, setAlreadyPaidIds] = useState<string[]>([]);
 
   // --- settlement fields ---
   const initialSettlement =
@@ -145,6 +140,13 @@ export function AddEdit() {
     initialSettlement?.fromId ?? prefillSettlement?.fromId ?? whoAmI ?? "",
   );
   const [toId, setToId] = useState(initialSettlement?.toId ?? prefillSettlement?.toId ?? "");
+
+  // Which currency the amount box is accepting right now. Reopening an entry
+  // that was entered in a foreign currency puts you back in that currency.
+  const groupCurrency = ledger?.settings?.currency ?? undefined;
+  const [inForeign, setInForeign] = useState(
+    Boolean(initialExpense?.foreign ?? initialSettlement?.foreign),
+  );
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -242,21 +244,24 @@ export function AddEdit() {
     try {
       if (totalGrosze === null) throw new Error("Nieprawidłowa kwota");
 
+      // Captured at write time so a later rate change cannot rewrite what
+      // this entry cost. Explicitly undefined when back in base currency, so
+      // editing a foreign entry into a PLN one clears the old record.
+      // null, not undefined: JSON.stringify would drop an undefined key and
+      // the server-side merge would keep whatever currency was there before.
+      const foreign =
+        inForeign && groupCurrency && enteredMinor !== null
+          ? {
+              code: groupCurrency.code,
+              amountMinor: enteredMinor,
+              rate: groupCurrency.rate,
+            }
+          : null;
+
       if (entryType === "expense") {
         const shares = buildShares();
-        // Captured at write time so a later rate change cannot rewrite what
-        // this expense cost. Explicitly undefined when back in base currency,
-        // so editing a foreign entry into a PLN one clears the old record.
-        const foreign =
-          inForeign && groupCurrency && enteredMinor !== null
-            ? {
-                code: groupCurrency.code,
-                amountMinor: enteredMinor,
-                rate: groupCurrency.rate,
-              }
-            : undefined;
         if (editingEntry) {
-          const changes: Partial<Entry> = {
+          const changes: EntryChanges = {
             type: "expense",
             description: description.trim(),
             amountGrosze: totalGrosze,
@@ -324,11 +329,12 @@ export function AddEdit() {
         }
       } else {
         if (editingEntry) {
-          const changes: Partial<Entry> = {
+          const changes: EntryChanges = {
             type: "settlement",
             fromId,
             toId,
             amountGrosze: totalGrosze,
+            foreign,
             date,
           };
           applyLedger(await updateEntry(editingEntry.id, changes, whoAmI));
@@ -339,6 +345,7 @@ export function AddEdit() {
             fromId,
             toId,
             amountGrosze: totalGrosze,
+            ...(foreign ? { foreign } : {}),
             date,
             createdAt: new Date().toISOString(),
             createdBy: whoAmI,
@@ -433,9 +440,8 @@ export function AddEdit() {
               </span>
             </div>
 
-            {/* Only offered when the group has set up a second currency, and
-                only for expenses — a settlement is a real PLN transfer. */}
-            {groupCurrency && entryType === "expense" && (
+            {/* Only offered when the group has set up a second currency. */}
+            {groupCurrency && (
               <div className="mt-3 flex justify-center gap-1.5">
                 {[
                   { foreign: false, label: "zł" },

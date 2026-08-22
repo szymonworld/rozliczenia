@@ -52,6 +52,11 @@ export type SettlementEntry = {
   fromId: string;
   toId: string;
   amountGrosze: number;
+  /**
+   * Set when the amount was typed in the group's second currency.
+   * `amountGrosze` is still the source of truth; this is what to show.
+   */
+  foreign?: ForeignAmount;
   date: string;
   createdAt: string;
   createdBy: string;
@@ -216,10 +221,24 @@ export type AdminActionRequest = {
   slug: string;
 };
 
+/**
+ * Fields to merge into an existing entry.
+ *
+ * `foreign: null` is the only way to remove a currency record: JSON.stringify
+ * drops keys whose value is undefined, so an undefined `foreign` never reaches
+ * the server and the merge there would silently keep the old one.
+ */
+// Spelled out per entry type rather than as an intersection over
+// Partial<Entry>: an intersection narrows `foreign` back to ForeignAmount and
+// would reject the null this type exists to allow.
+export type EntryChanges =
+  | (Omit<Partial<ExpenseEntry>, "foreign"> & { foreign?: ForeignAmount | null })
+  | (Omit<Partial<SettlementEntry>, "foreign"> & { foreign?: ForeignAmount | null });
+
 // Request body accepted by POST /api/entry
 export type EntryWriteRequest =
   | { action: "create"; entry: Entry }
-  | { action: "update"; id: string; changes: Partial<Entry>; editedBy: string }
+  | { action: "update"; id: string; changes: EntryChanges; editedBy: string }
   | { action: "delete"; id: string }
   | { action: "restore"; id: string }
   | { action: "addMember"; name: string }
