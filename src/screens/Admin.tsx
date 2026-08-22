@@ -3,7 +3,7 @@ import { Header } from "../components/Header";
 import { Banner } from "../components/Banner";
 import { Icon } from "../components/Icon";
 import { useToast } from "../context/ToastContext";
-import { copyText } from "../lib/share";
+import { copyText, shareText } from "../lib/share";
 import { createGroup } from "../lib/api";
 import { GroupForm } from "../components/GroupForm";
 import { STALE_DAYS, VERY_STALE_DAYS } from "../../shared/types";
@@ -91,11 +91,13 @@ function EventRow({
   busy,
   onAction,
   onCopyLink,
+  onShareLink,
 }: {
   group: AdminGroupSummary;
   busy: boolean;
   onAction: (action: "archive" | "restore" | "purge" | "clear-pin", slug: string) => void;
   onCopyLink: (slug: string) => void;
+  onShareLink: (slug: string, name: string) => void;
 }) {
   const [confirmingPurge, setConfirmingPurge] = useState(false);
   const archived = Boolean(group.archivedAt);
@@ -124,6 +126,13 @@ function EventRow({
           </p>
           <p className="num mt-0.5 truncate text-[12px] text-muted">/g/{group.slug}</p>
         </div>
+        <button
+          aria-label={`Udostępnij link do ${group.name}`}
+          onClick={() => onShareLink(group.slug, group.name)}
+          className="press flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted active:bg-surface-2"
+        >
+          <Icon name="share" className="h-4 w-4" />
+        </button>
         <button
           aria-label={`Kopiuj link do ${group.name}`}
           onClick={() => onCopyLink(group.slug)}
@@ -331,6 +340,13 @@ export function Admin() {
     showToast((await copyText(link)) ? "Link skopiowany" : "Nie udało się skopiować");
   };
 
+  const shareLink = async (slug: string, name: string) => {
+    const link = `${window.location.origin}/g/${slug}`;
+    const result = await shareText(name, link);
+    if (result === "copied") showToast("Link skopiowany do schowka");
+    else if (result === "failed") showToast("Nie udało się udostępnić linku");
+  };
+
   if (signedIn !== true) {
     return (
       <div className="app-shell bg-bg">
@@ -422,6 +438,7 @@ export function Admin() {
                     busy={busy}
                     onAction={act}
                     onCopyLink={copyLink}
+                    onShareLink={shareLink}
                   />
                 ))}
               </ul>
@@ -439,6 +456,7 @@ export function Admin() {
                     busy={busy}
                     onAction={act}
                     onCopyLink={copyLink}
+                    onShareLink={shareLink}
                   />
                 ))}
               </ul>

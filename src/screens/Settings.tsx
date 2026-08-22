@@ -25,7 +25,7 @@ import {
 } from "../lib/api";
 import { DEFAULT_GROUP_NAME, groupName, memberUsageCount } from "../lib/ledgerView";
 import { PIN_MAX_LENGTH, PIN_MIN_LENGTH, STALE_DAYS, VERY_STALE_DAYS } from "../../shared/types";
-import { buildCsv, downloadFile, shareText } from "../lib/share";
+import { buildCsv, copyText, downloadFile, shareText } from "../lib/share";
 import type { Ledger, Member } from "../../shared/types";
 
 const sectionTitle = "mb-2 px-1 text-[13px] font-semibold uppercase tracking-[0.06em] text-muted";
@@ -426,30 +426,52 @@ export function Settings() {
             >
               {ledger.members.map((m) => {
                 const details = [m.payment?.blik, m.payment?.iban].filter(Boolean).join(" · ");
+                // BLIK is the payment method that actually gets used day to
+                // day, so it gets a one-tap copy right on the collapsed row —
+                // no need to open the editor just to hand someone your number.
+                const quickCopyValue = m.payment?.blik || m.payment?.iban;
+                const quickCopyLabel = m.payment?.blik ? "BLIK" : "numer konta";
                 return (
                   <li key={m.id}>
-                    <button
-                      onClick={() => setEditingId(editingId === m.id ? null : m.id)}
-                      className="press flex w-full items-center gap-3 px-4 py-3 text-left active:bg-surface-2"
-                    >
-                      <Avatar
-                        name={m.name}
-                        seed={m.id}
-                        size="md"
-                        className={m.hidden ? "opacity-50" : ""}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span
-                          className={`block text-[15px] font-medium ${m.hidden ? "text-muted" : "text-ink"}`}
+                    <div className="flex items-center">
+                      <button
+                        onClick={() => setEditingId(editingId === m.id ? null : m.id)}
+                        className="press flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left active:bg-surface-2"
+                      >
+                        <Avatar
+                          name={m.name}
+                          seed={m.id}
+                          size="md"
+                          className={m.hidden ? "opacity-50" : ""}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span
+                            className={`block text-[15px] font-medium ${m.hidden ? "text-muted" : "text-ink"}`}
+                          >
+                            {m.name}
+                          </span>
+                          <span className="block truncate text-[13px] text-muted">
+                            {details || "Brak danych do przelewu"}
+                          </span>
+                        </span>
+                        <Icon name="pencil" className="h-4 w-4 shrink-0 text-muted/70" />
+                      </button>
+                      {quickCopyValue && (
+                        <button
+                          aria-label={`Kopiuj ${quickCopyLabel} ${m.name}`}
+                          onClick={async () =>
+                            showToast(
+                              (await copyText(quickCopyValue))
+                                ? `${quickCopyLabel} skopiowany`
+                                : "Nie udało się skopiować",
+                            )
+                          }
+                          className="press mr-1.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-accent active:bg-surface-2"
                         >
-                          {m.name}
-                        </span>
-                        <span className="block truncate text-[13px] text-muted">
-                          {details || "Brak danych do przelewu"}
-                        </span>
-                      </span>
-                      <Icon name="pencil" className="h-4 w-4 shrink-0 text-muted/70" />
-                    </button>
+                          <Icon name="copy" className="h-[18px] w-[18px]" />
+                        </button>
+                      )}
+                    </div>
                     {editingId === m.id && (
                       <MemberEditor
                         member={m}
