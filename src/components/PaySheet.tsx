@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { Member } from "../../shared/types";
 import { formatGrosze } from "../lib/money";
+import { formatPhoneDisplay, phoneDigitsOnly } from "../lib/phone";
 import { buildPaymentString, buildQrSvg, isUsableIban } from "../lib/paymentQr";
 import { copyText } from "../lib/share";
 import { useToast } from "../context/ToastContext";
@@ -86,11 +87,11 @@ export function PaySheet({
             <li className="flex items-center gap-3 rounded-2xl bg-surface-2 px-4 py-2.5">
               <span className="w-12 shrink-0 text-[13px] text-muted">BLIK</span>
               <span className="num min-w-0 flex-1 truncate text-[15px] text-ink">
-                {recipient.payment.blik}
+                {formatPhoneDisplay(recipient.payment.blik)}
               </span>
               <button
                 aria-label="Kopiuj numer BLIK"
-                onClick={() => copy("Numer BLIK", recipient.payment!.blik!)}
+                onClick={() => copy("Numer BLIK", phoneDigitsOnly(recipient.payment!.blik!))}
                 className="press flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-accent"
               >
                 <Icon name="copy" className="h-[18px] w-[18px]" />

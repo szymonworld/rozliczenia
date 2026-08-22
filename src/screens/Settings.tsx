@@ -26,6 +26,7 @@ import {
 import { DEFAULT_GROUP_NAME, groupName, memberUsageCount } from "../lib/ledgerView";
 import { PIN_MAX_LENGTH, PIN_MIN_LENGTH, STALE_DAYS, VERY_STALE_DAYS } from "../../shared/types";
 import { buildCsv, copyText, downloadFile, shareText } from "../lib/share";
+import { formatPhoneDisplay, phoneDigitsOnly } from "../lib/phone";
 import type { Ledger, Member } from "../../shared/types";
 
 const sectionTitle = "mb-2 px-1 text-[13px] font-semibold uppercase tracking-[0.06em] text-muted";
@@ -425,11 +426,18 @@ export function Settings() {
               className={`card divide-y divide-line overflow-hidden rounded-3xl ${busy ? "opacity-60" : ""}`}
             >
               {ledger.members.map((m) => {
-                const details = [m.payment?.blik, m.payment?.iban].filter(Boolean).join(" · ");
+                const details = [
+                  m.payment?.blik && formatPhoneDisplay(m.payment.blik),
+                  m.payment?.iban,
+                ]
+                  .filter(Boolean)
+                  .join(" · ");
                 // BLIK is the payment method that actually gets used day to
                 // day, so it gets a one-tap copy right on the collapsed row —
                 // no need to open the editor just to hand someone your number.
-                const quickCopyValue = m.payment?.blik || m.payment?.iban;
+                const quickCopyValue = m.payment?.blik
+                  ? phoneDigitsOnly(m.payment.blik)
+                  : m.payment?.iban;
                 const quickCopyLabel = m.payment?.blik ? "BLIK" : "numer konta";
                 return (
                   <li key={m.id}>

@@ -13,6 +13,7 @@ import { useToast } from "../context/ToastContext";
 import { copyText } from "../lib/share";
 import { createEntry, updateEntry } from "../lib/api";
 import { formatGrosze, groszeToInputValue, parsePlnToGrosze, splitEqual } from "../lib/money";
+import { formatPhoneDisplay, phoneDigitsOnly } from "../lib/phone";
 import type { Entry, Share } from "../../shared/types";
 import type { SuggestedTransfer } from "../lib/balances";
 
@@ -540,10 +541,19 @@ export function AddEdit() {
 
               {(() => {
                 const recipient = allMembers.find((m) => m.id === toId);
+                const blik = recipient?.payment?.blik;
                 const rows = [
-                  { label: "BLIK", value: recipient?.payment?.blik },
-                  { label: "Konto", value: recipient?.payment?.iban },
-                ].filter((r) => r.value);
+                  blik && {
+                    label: "BLIK",
+                    display: formatPhoneDisplay(blik),
+                    copy: phoneDigitsOnly(blik),
+                  },
+                  recipient?.payment?.iban && {
+                    label: "Konto",
+                    display: recipient.payment.iban,
+                    copy: recipient.payment.iban,
+                  },
+                ].filter((r): r is { label: string; display: string; copy: string } => Boolean(r));
                 if (!recipient || rows.length === 0) return null;
 
                 return (
@@ -556,14 +566,14 @@ export function AddEdit() {
                         <li key={r.label} className="flex items-center gap-3">
                           <span className="w-12 shrink-0 text-[13px] text-muted">{r.label}</span>
                           <span className="num min-w-0 flex-1 truncate text-[15px] text-ink">
-                            {r.value}
+                            {r.display}
                           </span>
                           <button
                             type="button"
                             aria-label={`Kopiuj ${r.label}`}
                             onClick={async () => {
                               showToast(
-                                (await copyText(r.value as string))
+                                (await copyText(r.copy))
                                   ? `${r.label} skopiowany`
                                   : "Nie udało się skopiować",
                               );
