@@ -14,6 +14,7 @@ import {
   addMember,
   archiveGroup,
   clearGroupSlug,
+  setGroupSlug,
   clearPin,
   removeMember,
   setPin,
@@ -27,6 +28,7 @@ import { DEFAULT_GROUP_NAME, groupName, memberUsageCount } from "../lib/ledgerVi
 import { PIN_MAX_LENGTH, PIN_MIN_LENGTH, STALE_DAYS, VERY_STALE_DAYS } from "../../shared/types";
 import { buildCsv, copyText, downloadFile, shareText } from "../lib/share";
 import { formatPhoneDisplay, phoneDigitsOnly } from "../lib/phone";
+import { forgetGroup, listKnownGroups } from "../lib/groups";
 import type { Ledger, Member } from "../../shared/types";
 
 const sectionTitle = "mb-2 px-1 text-[13px] font-semibold uppercase tracking-[0.06em] text-muted";
@@ -267,7 +269,10 @@ export function Settings() {
   const handleArchiveGroup = async () => {
     if (await run(() => archiveGroup(whoAmI ?? undefined), "Nie udało się usunąć wydarzenia")) {
       // The link is dead now, so this device must forget it too — otherwise the
-      // app would sit on a slug that answers 404.
+      // app would sit on a slug that answers 404, and the group would linger
+      // in the switcher offering to take you nowhere.
+      const slug = getGroupSlug();
+      if (slug) forgetGroup(slug);
       clearGroupSlug();
       clearWhoAmI();
       window.location.replace("/");
@@ -587,6 +592,44 @@ export function Settings() {
               onClear={handleClearPin}
             />
           </section>
+
+          {(() => {
+            const others = listKnownGroups().filter((g) => g.slug !== getGroupSlug());
+            if (others.length === 0) return null;
+            return (
+              <section>
+                <h2 className={sectionTitle}>Twoje grupy</h2>
+                <ul className="card divide-y divide-line overflow-hidden rounded-2xl">
+                  {others.map((g) => (
+                    <li key={g.slug}>
+                      <button
+                        onClick={() => {
+                          setGroupSlug(g.slug);
+                          // Identity is per group and read once at start-up.
+                          window.location.replace("/");
+                        }}
+                        className="press flex w-full items-center gap-3 px-4 py-3 text-left active:bg-surface-2"
+                      >
+                        <Avatar name={g.name} seed={g.slug} size="md" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[15px] font-medium text-ink">
+                            {g.name}
+                          </span>
+                          <span className="num block truncate text-[12px] text-muted">
+                            /g/{g.slug}
+                          </span>
+                        </span>
+                        <Icon name="chevron" className="h-4 w-4 shrink-0 text-muted/60" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 px-1 text-[13px] leading-relaxed text-muted">
+                  Grupy otwarte na tym urządzeniu. Przełączenie nie usuwa niczego.
+                </p>
+              </section>
+            );
+          })()}
 
           <section>
             <h2 className={sectionTitle}>Link do grupy</h2>

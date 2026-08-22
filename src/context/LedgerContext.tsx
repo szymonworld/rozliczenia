@@ -13,9 +13,12 @@ import {
   GroupNotFoundError,
   PinRequiredError,
   fetchLedger,
+  getGroupSlug,
   readCachedLedger,
   reconcilePending,
 } from "../lib/api";
+import { forgetGroup, rememberGroup } from "../lib/groups";
+import { groupName } from "../lib/ledgerView";
 
 type LedgerContextValue = {
   ledger: Ledger | null;
@@ -56,6 +59,10 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
     try {
       const next = await fetchLedger();
       applyLedger(next);
+      // Record it in the device's group list on every successful fetch, so a
+      // renamed group updates its label here too.
+      const slug = getGroupSlug();
+      if (slug) rememberGroup(slug, groupName(next));
       setError(null);
       setIsOffline(false);
       setGroupNotFound(false);
@@ -64,6 +71,8 @@ export function LedgerProvider({ children }: { children: ReactNode }) {
       if (err instanceof PinRequiredError) {
         setPinRequired(true);
       } else if (err instanceof GroupNotFoundError) {
+        const dead = getGroupSlug();
+        if (dead) forgetGroup(dead);
         setGroupNotFound(true);
       } else if (err instanceof ApiError || !navigator.onLine) {
         setIsOffline(true);
