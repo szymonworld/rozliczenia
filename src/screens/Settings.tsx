@@ -14,6 +14,8 @@ import {
   addMember,
   archiveGroup,
   clearGroupSlug,
+  closeGroup,
+  reopenGroup,
   setGroupSlug,
   clearPin,
   removeMember,
@@ -222,6 +224,8 @@ export function Settings() {
   const [newName, setNewName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmingArchive, setConfirmingArchive] = useState(false);
+  const [confirmingClose, setConfirmingClose] = useState(false);
+  const eventClosed = Boolean(ledger?.closedAt);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -263,6 +267,19 @@ export function Settings() {
   const handleClearPin = async (currentPin: string) => {
     if (await run(() => clearPin(currentPin), "Nie udało się usunąć PIN-u")) {
       showToast("PIN usunięty");
+    }
+  };
+
+  const handleCloseGroup = async () => {
+    if (await run(() => closeGroup(whoAmI ?? undefined), "Nie udało się zamknąć wydarzenia")) {
+      setConfirmingClose(false);
+      showToast("Wydarzenie zamknięte");
+    }
+  };
+
+  const handleReopenGroup = async () => {
+    if (await run(() => reopenGroup(whoAmI ?? undefined), "Nie udało się otworzyć wydarzenia")) {
+      showToast("Wydarzenie otwarte ponownie");
     }
   };
 
@@ -340,6 +357,14 @@ export function Settings() {
             </Banner>
           )}
 
+          {eventClosed && (
+            <Banner tone="pos" icon="check">
+              Wydarzenie zamknięte &mdash; zmiany są zablokowane. Otwórz je ponownie niżej, aby
+              coś poprawić.
+            </Banner>
+          )}
+
+          {!eventClosed && (
           <section>
             <h2 className={sectionTitle}>Nazwa grupy</h2>
             <GroupNameForm
@@ -349,6 +374,8 @@ export function Settings() {
               onSave={handleRenameGroup}
             />
           </section>
+
+          )}
 
           <section>
             <h2 className={sectionTitle}>Wygląd</h2>
@@ -514,6 +541,7 @@ export function Settings() {
             </p>
           </section>
 
+          {!eventClosed && (
           <section>
             <h2 className={sectionTitle}>Dodaj osobę</h2>
             <div className="flex gap-2">
@@ -540,6 +568,7 @@ export function Settings() {
               </button>
             </div>
           </section>
+          )}
 
           <section>
             <h2 className={sectionTitle}>Aplikacja</h2>
@@ -682,6 +711,9 @@ export function Settings() {
               <p className="mt-2 px-1 text-[13px] leading-relaxed text-muted">
                 {(() => {
                   const idle = daysSince(ledger.updatedAt ?? ledger.createdAt);
+                  // A closed event is finished on purpose, so calling it
+                  // "aktywne" or warning about idleness reads as contradictory.
+                  if (ledger.closedAt) return "Wydarzenie zamknięte. Nic nie jest usuwane automatycznie.";
                   if (idle === null) return "Nic nie jest usuwane automatycznie.";
                   if (idle >= VERY_STALE_DAYS)
                     return `Bez zmian od ${idle} dni — oznaczone jako nieużywane (${VERY_STALE_DAYS}+). Nic nie znika samo.`;
@@ -692,6 +724,89 @@ export function Settings() {
               </p>
             </section>
           )}
+
+          <section>
+            <h2 className={sectionTitle}>
+              {ledger.closedAt ? "Wydarzenie zamknięte" : "Zamknij wydarzenie"}
+            </h2>
+            {ledger.closedAt ? (
+              <>
+                <button
+                  disabled={busy}
+                  onClick={handleReopenGroup}
+                  className="press card flex min-h-13 w-full items-center gap-3 rounded-2xl px-4 text-left disabled:opacity-40"
+                >
+                  <span
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                    style={{ color: "var(--accent)", background: "var(--accent-soft)" }}
+                  >
+                    <Icon name="undo" className="h-[18px] w-[18px]" />
+                  </span>
+                  <span className="flex-1">
+                    <span className="block text-[15px] font-medium text-ink">Otwórz ponownie</span>
+                    <span className="block text-[13px] text-muted">
+                      Zamknięte {dateFormat.format(new Date(ledger.closedAt))}
+                    </span>
+                  </span>
+                  <Icon name="chevron" className="h-4 w-4 shrink-0 text-muted/60" />
+                </button>
+                <p className="mt-2 px-1 text-[13px] leading-relaxed text-muted">
+                  Rozliczenia są zamrożone i widoczne dla wszystkich. Nikt nie doda ani nie zmieni
+                  wpisu, dopóki wydarzenie nie zostanie otwarte ponownie.
+                </p>
+              </>
+            ) : confirmingClose ? (
+              <div className="anim-rise card space-y-3 rounded-2xl px-4 py-4">
+                <p className="text-[15px] font-medium text-ink">
+                  Zamknąć &bdquo;{groupName(ledger)}&rdquo;?
+                </p>
+                <p className="text-[13px] leading-relaxed text-muted">
+                  Wszystko zostaje widoczne, ale nikt nie doda ani nie zmieni wpisu. Zawsze możesz
+                  otworzyć ponownie.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    disabled={busy}
+                    onClick={handleCloseGroup}
+                    className="press min-h-11 flex-1 rounded-xl bg-accent font-medium text-on-accent disabled:opacity-40"
+                  >
+                    Zamknij
+                  </button>
+                  <button
+                    onClick={() => setConfirmingClose(false)}
+                    className="press min-h-11 rounded-xl px-4 text-[14px] font-medium text-muted"
+                  >
+                    Anuluj
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <button
+                  disabled={busy}
+                  onClick={() => setConfirmingClose(true)}
+                  className="press card flex min-h-13 w-full items-center gap-3 rounded-2xl px-4 text-left disabled:opacity-40"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted">
+                    <Icon name="check" className="h-[18px] w-[18px]" strokeWidth={2.5} />
+                  </span>
+                  <span className="flex-1">
+                    <span className="block text-[15px] font-medium text-ink">
+                      Zamknij wydarzenie
+                    </span>
+                    <span className="block text-[13px] text-muted">
+                      Zamraża rozliczenia, nic nie znika
+                    </span>
+                  </span>
+                  <Icon name="chevron" className="h-4 w-4 shrink-0 text-muted/60" />
+                </button>
+                <p className="mt-2 px-1 text-[13px] leading-relaxed text-muted">
+                  Po imprezie, gdy wszyscy się rozliczyli. Podsumowanie zostaje do wglądu, a nikt
+                  już nic nie dopisze przez pomyłkę.
+                </p>
+              </>
+            )}
+          </section>
 
           {ledger.createdAt && (
             <section>

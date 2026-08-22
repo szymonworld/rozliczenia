@@ -9,6 +9,11 @@ export function groupName(ledger: Ledger | null): string {
   return ledger?.settings?.groupName?.trim() || DEFAULT_GROUP_NAME;
 }
 
+/** Whether the event has been settled and closed for writing. */
+export function isClosed(ledger: Ledger | null): boolean {
+  return Boolean(ledger?.closedAt);
+}
+
 /** How many entries would break if this member were removed. */
 export function memberUsageCount(ledger: Ledger | null, memberId: string): number {
   if (!ledger) return 0;

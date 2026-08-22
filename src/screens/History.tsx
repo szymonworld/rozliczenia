@@ -7,6 +7,7 @@ import { EntryRow } from "../components/EntryRow";
 import { useLedger } from "../context/LedgerContext";
 import { useToast } from "../context/ToastContext";
 import { deleteEntry, restoreEntry } from "../lib/api";
+import { isClosed } from "../lib/ledgerView";
 import type { Entry, Ledger, Member } from "../../shared/types";
 
 /** "Dziś" / "Wczoraj" / "21 sierpnia" for a yyyy-mm-dd date string. */
@@ -42,6 +43,7 @@ function matches(entry: Entry, members: Member[], query: string): boolean {
 
 export function History() {
   const { ledger, refetch, applyLedger } = useLedger();
+  const isClosedEvent = isClosed(ledger);
   const { showToast } = useToast();
   const [showDeleted, setShowDeleted] = useState(false);
   const [query, setQuery] = useState("");
@@ -164,6 +166,7 @@ export function History() {
                       key={entry.id}
                       entry={entry}
                       members={ledger.members}
+                      readOnly={isClosedEvent}
                       onDelete={handleDelete}
                       onRestore={handleRestore}
                     />

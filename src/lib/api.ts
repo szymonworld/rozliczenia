@@ -269,6 +269,15 @@ export async function addMember(name: string): Promise<Ledger> {
   return postEntry({ action: "addMember", name });
 }
 
+/** Marks the event finished: fully readable, but no longer writable. */
+export async function closeGroup(memberId?: string): Promise<Ledger> {
+  return postEntry({ action: "closeGroup", memberId });
+}
+
+export async function reopenGroup(memberId?: string): Promise<Ledger> {
+  return postEntry({ action: "reopenGroup", memberId });
+}
+
 /**
  * Soft-deletes the current event: the ledger stays in storage, but the link
  * stops working. Only the admin console can undo it.

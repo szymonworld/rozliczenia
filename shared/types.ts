@@ -95,6 +95,13 @@ export type Ledger = {
   archivedAt?: string;
   archivedBy?: string;
   /**
+   * Settled and done. The ledger stays fully readable — that is the point,
+   * it is the record of what happened — but nothing can be written to it
+   * until someone reopens it.
+   */
+  closedAt?: string;
+  closedBy?: string;
+  /**
    * Optional second factor on top of the secret link. Server-side only — the
    * API strips this before a ledger ever reaches a browser.
    */
@@ -187,6 +194,8 @@ export type EntryWriteRequest =
   | { action: "addMember"; name: string }
   | { action: "removeMember"; memberId: string }
   | { action: "archiveGroup"; memberId?: string }
+  | { action: "closeGroup"; memberId?: string }
+  | { action: "reopenGroup"; memberId?: string }
   | { action: "setPin"; pin: string; currentPin?: string }
   | { action: "clearPin"; currentPin: string }
   | { action: "setMemberHidden"; memberId: string; hidden: boolean }

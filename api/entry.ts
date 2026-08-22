@@ -81,6 +81,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return;
       }
     }
+    // A closed event is a finished record. Reopening it and deleting it are
+    // the only things left to do; everything else is refused here rather than
+    // relying on the UI to hide the buttons.
+    const ALLOWED_WHEN_CLOSED = new Set(["reopenGroup", "archiveGroup"]);
+    if (ledger.closedAt && !ALLOWED_WHEN_CLOSED.has(body.action)) {
+      res.status(409).json({
+        error: "To wydarzenie jest zamknięte — otwórz je ponownie, aby coś zmienić",
+        groupClosed: true,
+      });
+      return;
+    }
+
     let updated: Ledger;
 
     switch (body.action) {
@@ -191,6 +203,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return;
         }
         const { pin: _pin, ...rest } = ledger;
+        updated = rest;
+        break;
+      }
+      case "closeGroup": {
+        updated = {
+          ...ledger,
+          closedAt: new Date().toISOString(),
+          closedBy: body.memberId,
+        };
+        break;
+      }
+      case "reopenGroup": {
+        const { closedAt: _closedAt, closedBy: _closedBy, ...rest } = ledger;
         updated = rest;
         break;
       }

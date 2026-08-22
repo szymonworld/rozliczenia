@@ -29,11 +29,14 @@ function previousSummary(entry: Entry): string | null {
 export function EntryRow({
   entry,
   members,
+  readOnly = false,
   onDelete,
   onRestore,
 }: {
   entry: Entry;
   members: Member[];
+  /** A closed event: the row still reads, but every way to change it is gone. */
+  readOnly?: boolean;
   onDelete: (id: string) => void;
   onRestore: (id: string) => void;
 }) {
@@ -60,7 +63,7 @@ export function EntryRow({
     <li className={isDeleted ? "opacity-55" : ""}>
       <div className="flex items-center gap-3 pl-4 pr-1.5 py-2.5">
         <button
-          onClick={() => !isDeleted && navigate(`/edytuj/${entry.id}`)}
+          onClick={() => !isDeleted && !readOnly && navigate(`/edytuj/${entry.id}`)}
           disabled={isDeleted}
           className="flex min-w-0 flex-1 items-center gap-3 py-1 text-left"
         >
@@ -121,7 +124,7 @@ export function EntryRow({
           </span>
         </button>
 
-        {isDeleted ? (
+        {readOnly ? null : isDeleted ? (
           <button
             aria-label="Przywróć wpis"
             onClick={() => onRestore(entry.id)}

@@ -16,7 +16,13 @@ import { useLedger } from "../context/LedgerContext";
 import { useToast } from "../context/ToastContext";
 import { computeNetBalances, computePairwiseDebts, suggestTransfers } from "../lib/balances";
 import type { SuggestedTransfer } from "../lib/balances";
-import { countableEntries, groupName, pendingConfirmations, visibleEntries } from "../lib/ledgerView";
+import {
+  countableEntries,
+  groupName,
+  isClosed,
+  pendingConfirmations,
+  visibleEntries,
+} from "../lib/ledgerView";
 import { confirmSettlement, rejectSettlement } from "../lib/api";
 import { buildSummaryText, shareText } from "../lib/share";
 import { formatGrosze } from "../lib/money";
@@ -98,6 +104,7 @@ export function Home() {
   };
 
   const title = groupName(ledger);
+  const closed = isClosed(ledger);
 
   const payRecipient =
     paying && ledger ? ledger.members.find((m) => m.id === paying.toId) : undefined;
@@ -155,6 +162,12 @@ export function Home() {
           )}
           {refreshing && !isOffline && (
             <p className="text-center text-xs font-medium text-muted">Odświeżanie…</p>
+          )}
+
+          {closed && (
+            <Banner tone="pos" icon="check">
+              Wydarzenie zamknięte &mdash; rozliczenia poniżej są ostateczne.
+            </Banner>
           )}
 
           <ConfirmationCard
@@ -254,7 +267,9 @@ export function Home() {
           </button>
         </div>
       </PullToRefresh>
-      <Fab />
+      {/* Nothing can be written to a closed event, so the button that exists
+          only to write would just lead to a refusal. */}
+      {!closed && <Fab />}
 
       {paying && payRecipient && (
         <PaySheet

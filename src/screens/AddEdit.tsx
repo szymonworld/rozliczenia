@@ -21,6 +21,7 @@ import {
 } from "../lib/money";
 import { formatPhoneDisplay, phoneDigitsOnly } from "../lib/phone";
 import { plural } from "../lib/plural";
+import { isClosed } from "../lib/ledgerView";
 import { CATEGORIES } from "../lib/categories";
 import { Check } from "../components/Check";
 import type { Entry, ExpenseCategory, Share } from "../../shared/types";
@@ -327,6 +328,36 @@ export function AddEdit() {
     return (
       <div className="app-shell items-center justify-center bg-bg text-sm text-muted">
         Ładowanie…
+      </div>
+    );
+  }
+
+  // Reachable by typing the URL or from a stale tab. The server refuses the
+  // write anyway; this explains why instead of failing on submit.
+  if (isClosed(ledger)) {
+    return (
+      <div className="app-shell bg-bg">
+        <Header title="Wydarzenie zamknięte" back right={<span />} />
+        <div className="app-scroll">
+          <div className="anim-rise mx-auto w-full max-w-md px-4 pt-6 text-center">
+            <span
+              className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl"
+              style={{ color: "var(--pos)", background: "var(--pos-soft)" }}
+            >
+              <Icon name="check" className="h-7 w-7" strokeWidth={2.5} />
+            </span>
+            <p className="text-[15px] leading-relaxed text-muted">
+              To wydarzenie jest zamknięte, więc nie można dodawać ani zmieniać wpisów. Otwórz je
+              ponownie w Ustawieniach, jeśli czegoś brakuje.
+            </p>
+            <button
+              onClick={() => navigate("/ustawienia")}
+              className="press card mt-4 min-h-12 w-full rounded-2xl font-medium text-ink"
+            >
+              Ustawienia
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

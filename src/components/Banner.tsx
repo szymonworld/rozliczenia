@@ -4,6 +4,7 @@ import { Icon } from "./Icon";
 const tones = {
   warn: "bg-warn-soft text-warn",
   neg: "bg-neg-soft text-neg",
+  pos: "bg-pos-soft text-pos",
 } as const;
 
 export function Banner({
