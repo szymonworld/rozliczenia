@@ -6,7 +6,7 @@ import {
   saveLedger,
 } from "./_lib/storage.js";
 import { hasAdminSession } from "./_lib/adminAuth.js";
-import { GROUP_SLUG, stalenessOf, STALE_DAYS, VERY_STALE_DAYS } from "../shared/types.js";
+import { stalenessOf, STALE_DAYS, VERY_STALE_DAYS } from "../shared/types.js";
 import type { AdminActionRequest, AdminGroupSummary, Ledger } from "../shared/types.js";
 
 /**
@@ -41,7 +41,6 @@ function summarise(ledger: Ledger): AdminGroupSummary {
     idleDays: idle,
     staleness: stalenessOf(idle),
     pinEnabled: Boolean(ledger.pin),
-    isPrimary: ledger.slug === GROUP_SLUG,
   };
 }
 
@@ -60,10 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (ledger) groups.push(summarise(ledger));
       }
       // Most recently touched first; that is the order an operator scans in.
-      groups.sort((a, b) => {
-        if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
-        return (b.updatedAt ?? "").localeCompare(a.updatedAt ?? "");
-      });
+      groups.sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
 
       res.status(200).json({
         staleDays: STALE_DAYS,
@@ -85,13 +81,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const ledger = slug ? await getLedgerIfExists(slug) : null;
     if (!ledger) {
       res.status(404).json({ error: "Nie znaleziono wydarzenia" });
-      return;
-    }
-
-    // The original group is listed so it can be inspected and unlocked, but
-    // removing it would strand every existing link.
-    if (slug === GROUP_SLUG && (body.action === "archive" || body.action === "purge")) {
-      res.status(409).json({ error: "Głównej grupy nie można usunąć" });
       return;
     }
 

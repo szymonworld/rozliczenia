@@ -4,6 +4,8 @@ import { Banner } from "../components/Banner";
 import { Icon } from "../components/Icon";
 import { useToast } from "../context/ToastContext";
 import { copyText } from "../lib/share";
+import { createGroup } from "../lib/api";
+import { GroupForm } from "../components/GroupForm";
 import { STALE_DAYS, VERY_STALE_DAYS } from "../../shared/types";
 import type { AdminGroupSummary, AdminListResponse } from "../../shared/types";
 
@@ -21,6 +23,49 @@ const dateFormat = new Intl.DateTimeFormat("pl-PL", { dateStyle: "medium" });
 
 function stamp(iso?: string): string {
   return iso ? dateFormat.format(new Date(iso)) : "—";
+}
+
+/** Bootstraps a deployment with no groups yet, and adds them afterwards. */
+function CreateGroup({
+  busy,
+  onCreate,
+}: {
+  busy: boolean;
+  onCreate: (name: string, people: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="press card flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl font-medium text-ink"
+      >
+        <Icon name="plus" className="h-[18px] w-[18px]" strokeWidth={2.25} />
+        Nowa grupa
+      </button>
+    );
+  }
+
+  return (
+    <section className="anim-rise space-y-4">
+      <GroupForm
+        busy={busy}
+        submitLabel="Utwórz grupę"
+        namePlaceholder="np. Mieszkanie 4B"
+        onSubmit={(name, people) => {
+          onCreate(name, people);
+          setOpen(false);
+        }}
+      />
+      <button
+        onClick={() => setOpen(false)}
+        className="press min-h-11 w-full rounded-xl text-[14px] font-medium text-muted"
+      >
+        Anuluj
+      </button>
+    </section>
+  );
 }
 
 /** Idle events are flagged, never touched — the colour is the whole point. */
@@ -70,14 +115,6 @@ function EventRow({
               </span>
             ) : (
               <StalenessBadge group={group} />
-            )}
-            {group.isPrimary && (
-              <span
-                className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
-                style={{ color: "var(--accent)", background: "var(--accent-soft)" }}
-              >
-                Główna
-              </span>
             )}
             {group.pinEnabled && (
               <span className="shrink-0 text-muted" title="Chronione PIN-em">
@@ -139,15 +176,13 @@ function EventRow({
         </div>
       ) : (
         <div className="flex gap-2">
-          {!group.isPrimary && (
-            <button
-              disabled={busy}
-              onClick={() => onAction(archived ? "restore" : "archive", group.slug)}
-              className="press min-h-10 flex-1 rounded-xl border border-line text-[14px] font-medium text-ink disabled:opacity-40"
-            >
-              {archived ? "Przywróć" : "Usuń"}
-            </button>
-          )}
+          <button
+            disabled={busy}
+            onClick={() => onAction(archived ? "restore" : "archive", group.slug)}
+            className="press min-h-10 flex-1 rounded-xl border border-line text-[14px] font-medium text-ink disabled:opacity-40"
+          >
+            {archived ? "Przywróć" : "Usuń"}
+          </button>
           {group.pinEnabled && (
             <button
               disabled={busy}
@@ -157,7 +192,7 @@ function EventRow({
               Zdejmij PIN
             </button>
           )}
-          {archived && !group.isPrimary && (
+          {archived && (
             <button
               disabled={busy}
               onClick={() => setConfirmingPurge(true)}
@@ -166,11 +201,6 @@ function EventRow({
             >
               Skasuj
             </button>
-          )}
-          {group.isPrimary && !group.pinEnabled && (
-            <p className="flex-1 py-2 text-[13px] text-muted">
-              Główna grupa &mdash; nie można jej usunąć.
-            </p>
           )}
         </div>
       )}
@@ -279,6 +309,23 @@ export function Admin() {
     }
   };
 
+  const handleCreate = async (name: string, people: string[]) => {
+    setBusy(true);
+    setError(null);
+    try {
+      // No fromSlug: the admin session is the authorisation here.
+      const { slug } = await createGroup(name, people);
+      showToast("Grupa utworzona");
+      await copyText(`${window.location.origin}/g/${slug}`);
+      showToast("Link skopiowany do schowka");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Nie udało się utworzyć grupy");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const copyLink = async (slug: string) => {
     const link = `${window.location.origin}/g/${slug}`;
     showToast((await copyText(link)) ? "Link skopiowany" : "Nie udało się skopiować");
@@ -324,7 +371,7 @@ export function Admin() {
   const active = (data?.groups.filter((g) => !g.archivedAt) ?? [])
     .slice()
     .sort((a, b) => (b.idleDays ?? 0) - (a.idleDays ?? 0));
-  const staleCount = active.filter((g) => g.staleness !== "fresh" && !g.isPrimary).length;
+  const staleCount = active.filter((g) => g.staleness !== "fresh").length;
   const archived = data?.groups.filter((g) => g.archivedAt) ?? [];
 
   return (
@@ -351,12 +398,7 @@ export function Admin() {
             </Banner>
           )}
 
-          {data && (
-            <div className="card rounded-2xl px-4 py-3 text-[13px] leading-relaxed text-muted">
-              Nic nie jest usuwane automatycznie. Wydarzenia bez zmian od {data.staleDays} dni są
-              oznaczane na żółto, a od {data.veryStaleDays} dni na czerwono — usuwasz je ręcznie.
-            </div>
-          )}
+          <CreateGroup busy={busy} onCreate={handleCreate} />
 
           <section>
             <h2 className={sectionTitle}>

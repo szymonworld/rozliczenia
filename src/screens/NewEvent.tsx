@@ -1,19 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "../components/Header";
-import { Avatar } from "../components/Avatar";
 import { Banner } from "../components/Banner";
 import { Icon } from "../components/Icon";
+import { GroupForm } from "../components/GroupForm";
 import { useLedger } from "../context/LedgerContext";
 import { useToast } from "../context/ToastContext";
 import { createGroup, setGroupSlug } from "../lib/api";
 import { copyText, shareText } from "../lib/share";
 import { STALE_DAYS } from "../../shared/types";
-
-const inputClass =
-  "min-h-12 w-full rounded-2xl border border-line bg-surface px-4 py-2.5 text-[15px] text-ink outline-none transition-colors placeholder:text-muted focus:border-accent focus:ring-4 focus:ring-accent/15";
-
-const sectionTitle = "mb-2 px-1 text-[13px] font-semibold uppercase tracking-[0.06em] text-muted";
 
 const gradient = {
   background: "linear-gradient(135deg, var(--accent), var(--accent-2))",
@@ -30,27 +25,16 @@ export function NewEvent() {
   const { showToast } = useToast();
   const { refetch } = useLedger();
 
-  const [name, setName] = useState("");
-  const [people, setPeople] = useState<string[]>(["", ""]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<{ slug: string; name: string } | null>(null);
 
-  const filled = people.map((p) => p.trim()).filter(Boolean);
-  const canSubmit = Boolean(name.trim()) && filled.length >= 2 && !busy;
-
-  const setPerson = (index: number, value: string) =>
-    setPeople((prev) => prev.map((p, i) => (i === index ? value : p)));
-
-  const removePerson = (index: number) =>
-    setPeople((prev) => (prev.length <= 2 ? prev : prev.filter((_, i) => i !== index)));
-
-  const handleCreate = async () => {
+  const handleCreate = async (name: string, memberNames: string[]) => {
     setBusy(true);
     setError(null);
     try {
-      const { slug } = await createGroup(name.trim(), filled);
-      setCreated({ slug, name: name.trim() });
+      const { slug } = await createGroup(name, memberNames);
+      setCreated({ slug, name });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Nie udało się utworzyć wydarzenia");
     } finally {
@@ -154,63 +138,7 @@ export function NewEvent() {
             </Banner>
           )}
 
-          <section>
-            <label htmlFor="event-name" className={`block ${sectionTitle}`}>
-              Nazwa wydarzenia
-            </label>
-            <input
-              id="event-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={60}
-              placeholder="np. Kawalerski Sławka"
-              className={inputClass}
-            />
-          </section>
-
-          <section>
-            <h2 className={sectionTitle}>Kto bierze udział</h2>
-            <ul className="stagger-rows card divide-y divide-line overflow-hidden rounded-3xl">
-              {people.map((person, i) => (
-                <li key={i} className="flex items-center gap-3 px-3 py-2">
-                  <Avatar name={person || "?"} seed={`new-${i}`} size="md" />
-                  <input
-                    value={person}
-                    onChange={(e) => setPerson(i, e.target.value)}
-                    maxLength={60}
-                    placeholder={`Osoba ${i + 1}`}
-                    aria-label={`Osoba ${i + 1}`}
-                    className="min-h-11 min-w-0 flex-1 border-none bg-transparent text-[15px] text-ink outline-none placeholder:text-muted"
-                  />
-                  <button
-                    disabled={people.length <= 2}
-                    onClick={() => removePerson(i)}
-                    aria-label={`Usuń osobę ${i + 1}`}
-                    className="press flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted active:bg-surface-2 disabled:opacity-30"
-                  >
-                    <Icon name="trash" className="h-[18px] w-[18px]" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-
-            <button
-              onClick={() => setPeople((prev) => [...prev, ""])}
-              className="press mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-line text-[15px] font-medium text-muted"
-            >
-              <Icon name="plus" className="h-[18px] w-[18px]" strokeWidth={2.25} />
-              Dodaj osobę
-            </button>
-          </section>
-
-          <button
-            disabled={!canSubmit}
-            onClick={handleCreate}
-            style={canSubmit ? gradient : undefined}
-            className="press min-h-13 w-full rounded-2xl bg-surface-2 py-3.5 font-semibold text-on-accent disabled:text-muted"
-          >
-            {busy ? "Tworzenie…" : "Utwórz wydarzenie"}
-          </button>
+          <GroupForm busy={busy} submitLabel="Utwórz wydarzenie" onSubmit={handleCreate} />
 
           <p className="px-1 text-[13px] leading-relaxed text-muted">
             Wydarzenie dostanie własny, tajny link i własne rozliczenia &mdash; obecna grupa

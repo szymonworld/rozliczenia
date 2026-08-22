@@ -1,58 +1,10 @@
-// Storage abstraction: Vercel Blob in production, a local JSON file for
-// zero-setup local development. Selected automatically by the presence of
-// BLOB_READ_WRITE_TOKEN. This is the ONLY code that touches the Blob token.
+// Storage abstraction: Vercel Blob in production, local JSON files under
+// .data/groups/ for zero-setup local development. Selected automatically by
+// the presence of BLOB_READ_WRITE_TOKEN. This is the ONLY code that touches
+// the Blob token.
 import { promises as fs } from "fs";
 import path from "path";
 import type { Ledger } from "../../shared/types.js";
-import { GROUP_SLUG } from "../../shared/types.js";
-
-function seedLedger(): Ledger {
-  const now = new Date().toISOString();
-  const today = now.slice(0, 10);
-  const members = [
-    { id: "szymon", name: "Szymon" },
-    { id: "jarek", name: "Jarek" },
-    { id: "alan", name: "Alan" },
-    { id: "dawid", name: "Dawid" },
-  ];
-  return {
-    slug: GROUP_SLUG,
-    members,
-    entries: [
-      {
-        id: "seed-1",
-        type: "expense",
-        description: "Zakupy na grilla",
-        amountGrosze: 12000,
-        payerId: "szymon",
-        date: today,
-        shares: [
-          { memberId: "szymon", amountGrosze: 3000 },
-          { memberId: "jarek", amountGrosze: 3000 },
-          { memberId: "alan", amountGrosze: 3000 },
-          { memberId: "dawid", amountGrosze: 3000 },
-        ],
-        createdAt: now,
-        createdBy: "szymon",
-      },
-      {
-        id: "seed-2",
-        type: "expense",
-        description: "Piwo",
-        amountGrosze: 4500,
-        payerId: "jarek",
-        date: today,
-        shares: [
-          { memberId: "jarek", amountGrosze: 1500 },
-          { memberId: "alan", amountGrosze: 1500 },
-          { memberId: "dawid", amountGrosze: 1500 },
-        ],
-        createdAt: now,
-        createdBy: "jarek",
-      },
-    ],
-  };
-}
 
 function isBlobConfigured(): boolean {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
@@ -62,12 +14,9 @@ function isBlobConfigured(): boolean {
 
 const LOCAL_DIR = path.join(process.cwd(), ".data");
 
-// The original group keeps its historic path; events live beside it, one
-// file each, so creating an event can never clobber the main ledger.
+// One file per group, so creating one can never clobber another.
 function localFile(slug: string): string {
-  return slug === GROUP_SLUG
-    ? path.join(LOCAL_DIR, "ledger.json")
-    : path.join(LOCAL_DIR, "groups", `${slug}.json`);
+  return path.join(LOCAL_DIR, "groups", `${slug}.json`);
 }
 
 async function readLocalIfExists(slug: string): Promise<Ledger | null> {
@@ -87,12 +36,6 @@ async function writeLocal(ledger: Ledger): Promise<void> {
 
 async function listLocal(): Promise<string[]> {
   const slugs: string[] = [];
-  try {
-    await fs.access(localFile(GROUP_SLUG));
-    slugs.push(GROUP_SLUG);
-  } catch {
-    // The original group has not been seeded on this machine yet.
-  }
   try {
     const names = await fs.readdir(path.join(LOCAL_DIR, "groups"));
     for (const name of names) {
@@ -166,19 +109,11 @@ export async function getLedgerIfExists(slug: string): Promise<Ledger | null> {
   return isBlobConfigured() ? readBlobIfExists(slug) : readLocalIfExists(slug);
 }
 
-/**
- * The original group is seeded on first read so a fresh deployment is usable
- * straight away. Generated events are never conjured up like that — an
- * unknown event slug is a 404, not an invitation to create one.
- */
-export async function getLedger(slug: string = GROUP_SLUG): Promise<Ledger> {
+/** An unknown slug is a 404, never an invitation to create a group. */
+export async function getLedger(slug: string): Promise<Ledger> {
   const existing = await getLedgerIfExists(slug);
   if (existing) return existing;
-  if (slug !== GROUP_SLUG) throw new LedgerNotFoundError(slug);
-
-  const seeded = seedLedger();
-  await saveLedger(seeded);
-  return seeded;
+  throw new LedgerNotFoundError(slug);
 }
 
 export class LedgerNotFoundError extends Error {
@@ -216,17 +151,13 @@ export async function createLedger(ledger: Ledger): Promise<void> {
   await saveLedger(ledger);
 }
 
-/**
- * Every stored slug, the original group included — the admin console lists it
- * too, even though it is the one group that cannot be archived or purged.
- */
+/** Every stored slug. All groups are equal, so none is filtered out. */
 export async function listGroupSlugs(): Promise<string[]> {
   const slugs = isBlobConfigured() ? await listBlob() : await listLocal();
   return [...new Set(slugs)];
 }
 
 export async function deleteGroup(slug: string): Promise<void> {
-  if (slug === GROUP_SLUG) throw new Error("Nie można usunąć głównej grupy");
   if (isBlobConfigured()) {
     await deleteBlob(slug);
   } else {

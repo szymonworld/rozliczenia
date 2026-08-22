@@ -9,7 +9,7 @@ import {
   withoutPinSecrets,
 } from "./_lib/pin.js";
 import type { Entry, EntryWriteRequest, Ledger } from "../shared/types.js";
-import { GROUP_SLUG, PIN_MAX_LENGTH, PIN_MIN_LENGTH } from "../shared/types.js";
+import { PIN_MAX_LENGTH, PIN_MIN_LENGTH } from "../shared/types.js";
 
 function validateEntry(entry: Entry): string | null {
   if (entry.type === "expense") {
@@ -195,10 +195,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         break;
       }
       case "archiveGroup": {
-        if (slug === GROUP_SLUG) {
-          res.status(409).json({ error: "Głównej grupy nie można usunąć" });
-          return;
-        }
         // touch:false so archiving does not reset the idle clock the admin
         // console reports on. Saved here rather than falling through to the
         // shared save at the bottom, which always touches.

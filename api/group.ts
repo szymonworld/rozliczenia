@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { createLedger } from "./_lib/storage.js";
-import { newSlug } from "./_lib/access.js";
+import { createLedger, getLedgerIfExists } from "./_lib/storage.js";
+import { newSlug, resolveSlug } from "./_lib/access.js";
+import { hasAdminSession } from "./_lib/adminAuth.js";
 import type { GroupCreateRequest, Ledger, Member } from "../shared/types.js";
 
 const MAX_MEMBERS = 30;
@@ -37,6 +38,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch {
     res.status(400).json({ error: "Nieprawidłowe dane żądania" });
     return;
+  }
+
+  // Anyone who can open a group may spin off another; everyone else needs the
+  // admin console. Without this the endpoint is an open group factory.
+  if (!hasAdminSession(req)) {
+    const from = resolveSlug(body?.fromSlug);
+    const source = from ? await getLedgerIfExists(from) : null;
+    if (!source || source.archivedAt) {
+      res.status(401).json({ error: "Brak uprawnień do tworzenia wydarzeń" });
+      return;
+    }
   }
 
   const name = typeof body?.name === "string" ? body.name.trim().slice(0, MAX_NAME) : "";

@@ -189,7 +189,7 @@ export async function createGroup(
   const res = await fetch("/api/group", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, memberNames }),
+    body: JSON.stringify({ name, memberNames, fromSlug: getGroupSlug() ?? undefined }),
   });
   if (!res.ok) {
     const detail = await res.json().catch(() => null);

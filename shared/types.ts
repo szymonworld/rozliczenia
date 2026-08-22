@@ -2,8 +2,6 @@
 // Keep this file framework-free (no React, no Node-only APIs) so it can be
 // imported from either context.
 
-export const GROUP_SLUG = "domownicy";
-
 /** Where to actually send this person money. Both fields are free-form. */
 export type PaymentDetails = {
   blik?: string; // phone number for a BLIK transfer
@@ -119,6 +117,12 @@ export type UnlockResponse = { token: string };
 export type GroupCreateRequest = {
   name: string;
   memberNames: string[];
+  /**
+   * Slug of the group the creator is already in. Proves they belong somewhere
+   * before they can spawn another group; the admin console sends none and
+   * authenticates with its session instead.
+   */
+  fromSlug?: string;
 };
 
 export type GroupCreateResponse = {
@@ -156,8 +160,6 @@ export type AdminGroupSummary = {
   idleDays: number | null;
   staleness: Staleness;
   pinEnabled: boolean;
-  /** The original group: listable and PIN-resettable, but never removable. */
-  isPrimary: boolean;
 };
 
 export type AdminListResponse = {
